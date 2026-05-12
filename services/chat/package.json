@@ -1,0 +1,29 @@
+{
+  "name": "chat-service",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.0",
+    "@kostin/types": "*",
+    "fastify": "^4.27.0",
+    "ioredis": "^5.4.0",
+    "mongoose": "^8.4.0",
+    "socket.io": "^4.7.0"
+  },
+  "devDependencies": {
+    "@kostin/config": "*",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.11.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

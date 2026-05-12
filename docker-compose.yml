@@ -1,0 +1,320 @@
+name: kostin
+
+# ─── Networks ────────────────────────────────────────────────────────────────
+networks:
+  kostin_net:
+    driver: bridge
+
+# ─── Volumes ─────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+  mongo_data:
+
+# ─── Services ─────────────────────────────────────────────────────────────────
+services:
+
+  # ── Infrastructure (always on) ─────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kostin_dev
+      POSTGRES_USER: kostin
+      POSTGRES_PASSWORD: kostin123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kostin_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kostin -d kostin_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kostin_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: kostin
+      MONGO_INITDB_ROOT_PASSWORD: kostin123
+      MONGO_INITDB_DATABASE: kostin_dev
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - kostin_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── Application services (--profile services) ──────────────────────────────
+
+  auth:
+    profiles: [services]
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      PORT: "3001"
+      DATABASE_URL: postgresql://kostin:kostin123@postgres:5432/kostin_dev
+      REDIS_URL: redis://redis:6379
+    networks:
+      - kostin_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  user:
+    profiles: [services]
+    build:
+      context: ./services/user
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file: .env
+    environment:
+      PORT: "3002"
+      DATABASE_URL: postgresql://kostin:kostin123@postgres:5432/kostin_dev
+      REDIS_URL: redis://redis:6379
+    networks:
+      - kostin_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  listing:
+    profiles: [services]
+    build:
+      context: ./services/listing
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    env_file: .env
+    environment:
+      PORT: "3003"
+      DATABASE_URL: postgresql://kostin:kostin123@postgres:5432/kostin_dev
+      REDIS_URL: redis://redis:6379
+    networks:
+      - kostin_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  booking:
+    profiles: [services]
+    build:
+      context: ./services/booking
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    env_file: .env
+    environment:
+      PORT: "3004"
+      DATABASE_URL: postgresql://kostin:kostin123@postgres:5432/kostin_dev
+      REDIS_URL: redis://redis:6379
+      ESCROW_SERVICE_URL: http://escrow:3005
+    networks:
+      - kostin_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  escrow:
+    profiles: [services]
+    build:
+      context: ./services/escrow
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    env_file: .env
+    environment:
+      PORT: "3005"
+      DATABASE_URL: postgresql://kostin:kostin123@postgres:5432/kostin_dev
+      REDIS_URL: redis://redis:6379
+      PAYMENT_SERVICE_URL: http://payment:3006
+    networks:
+      - kostin_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  payment:
+    profiles: [services]
+    build:
+      context: ./services/payment
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3006:3006"
+    env_file: .env
+    environment:
+      PORT: "3006"
+      DATABASE_URL: postgresql://kostin:kostin123@postgres:5432/kostin_dev
+      REDIS_URL: redis://redis:6379
+    networks:
+      - kostin_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  chat:
+    profiles: [services]
+    build:
+      context: ./services/chat
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3007:3007"
+    env_file: .env
+    environment:
+      PORT: "3007"
+      MONGODB_URL: mongodb://kostin:kostin123@mongo:27017/kostin_dev?authSource=admin
+      REDIS_URL: redis://redis:6379
+    networks:
+      - kostin_net
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification:
+    profiles: [services]
+    build:
+      context: ./services/notification
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3008:3008"
+    env_file: .env
+    environment:
+      PORT: "3008"
+      REDIS_URL: redis://redis:6379
+    networks:
+      - kostin_net
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  review:
+    profiles: [services]
+    build:
+      context: ./services/review
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3009:3009"
+    env_file: .env
+    environment:
+      PORT: "3009"
+      DATABASE_URL: postgresql://kostin:kostin123@postgres:5432/kostin_dev
+    networks:
+      - kostin_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  community:
+    profiles: [services]
+    build:
+      context: ./services/community
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3010:3010"
+    env_file: .env
+    environment:
+      PORT: "3010"
+      MONGODB_URL: mongodb://kostin:kostin123@mongo:27017/kostin_dev?authSource=admin
+    networks:
+      - kostin_net
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  admin:
+    profiles: [services]
+    build:
+      context: ./services/admin
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3011:3011"
+    env_file: .env
+    environment:
+      PORT: "3011"
+      DATABASE_URL: postgresql://kostin:kostin123@postgres:5432/kostin_dev
+      REDIS_URL: redis://redis:6379
+    networks:
+      - kostin_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ai:
+    profiles: [services]
+    build:
+      context: ./services/ai
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      PORT: "8000"
+      DATABASE_URL: postgresql://kostin:kostin123@postgres:5432/kostin_dev
+      REDIS_URL: redis://redis:6379
+    networks:
+      - kostin_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

@@ -1,0 +1,28 @@
+{
+  "name": "payment-service",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.0",
+    "@kostin/types": "*",
+    "@prisma/client": "^5.13.0",
+    "fastify": "^4.27.0",
+    "midtrans-client": "^1.4.0"
+  },
+  "devDependencies": {
+    "@kostin/config": "*",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.11.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

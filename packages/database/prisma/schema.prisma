@@ -1,0 +1,448 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum UserRole {
+  STUDENT
+  OWNER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum ListingStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  PENDING_REVIEW
+}
+
+enum RoomType {
+  STANDARD
+  DELUXE
+  PREMIUM
+}
+
+enum RoomStatus {
+  AVAILABLE
+  BOOKED
+  MAINTENANCE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// User-specified exact values
+enum EscrowStatus {
+  HOLDING
+  RELEASED
+  REFUNDED
+  DISPUTED
+}
+
+// User-specified exact values
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// User-specified exact values
+enum PaymentProvider {
+  MIDTRANS
+}
+
+enum NotificationChannel {
+  PUSH
+  WHATSAPP
+  SMS
+  EMAIL
+  IN_APP
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+}
+
+enum PointsTransactionType {
+  EARNED
+  REDEEMED
+  EXPIRED
+  ADJUSTED
+}
+
+// =============================================================================
+// USER
+// =============================================================================
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  phone     String     @unique
+  name      String
+  role      UserRole   @default(STUDENT)
+  status    UserStatus @default(PENDING_VERIFICATION)
+  avatarUrl String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations
+  profile       UserProfile?
+  listings      Listing[]
+  bookings      Booking[]        @relation("StudentBookings")
+  reviews       Review[]
+  notifications Notification[]
+  points        KostInPoints?
+  chatMembers   ChatRoomMember[]
+  sentMessages  ChatMessage[]
+
+  // Composite (role + status) covers "find all ACTIVE OWNERs" queries.
+  // role alone is the (userId + role) index requested, since id is the PK.
+  @@index([role, status])
+  @@map("users")
+}
+
+// Extended student / owner profile. lifestyle and preferences stored as JSON
+// so the shape can evolve without schema migrations.
+model UserProfile {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  bio        String?
+  university String?
+  major      String?
+  yearOfStudy Int?
+
+  // Example shape:
+  // { sleepTime: "early"|"late", noiseLevel: "quiet"|"moderate"|"loud",
+  //   smoking: false, pets: false, guests: "never"|"occasionally"|"frequently",
+  //   cleaningFreq: "daily"|"weekly"|"monthly" }
+  lifestyle   Json @default("{}")
+
+  // Example shape:
+  // { maxBudget: 1500000, preferredAreas: ["Lowokwaru","Dinoyo"],
+  //   amenities: ["wifi","ac","parking"], roomTypes: ["STANDARD","DELUXE"] }
+  preferences Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+// =============================================================================
+// LISTING + ROOM
+// =============================================================================
+
+model Listing {
+  id          String        @id @default(cuid())
+  ownerId     String
+  title       String
+  description String
+  address     String
+  kelurahan   String
+  kecamatan   String
+  city        String        @default("Malang")
+  lat         Float
+  lng         Float
+  amenities   String[]
+  rules       String[]
+  imageUrls   String[]
+  status      ListingStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  owner    User      @relation(fields: [ownerId], references: [id])
+  rooms    Room[]
+  bookings Booking[]
+  reviews  Review[]
+
+  @@index([ownerId])
+  // (listingId + status) — used when querying "active listings by this owner"
+  @@index([ownerId, status])
+  @@index([status])
+  @@map("listings")
+}
+
+model Room {
+  id            String     @id @default(cuid())
+  listingId     String
+  name          String
+  type          RoomType   @default(STANDARD)
+  pricePerMonth Decimal    @db.Decimal(12, 2)
+  sizeSqm       Float?
+  maxOccupants  Int        @default(1)
+  imageUrls     String[]
+  amenities     String[]
+  status        RoomStatus @default(AVAILABLE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  listing  Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([listingId])
+  // (listingId + status) — find available rooms in a listing efficiently
+  @@index([listingId, status])
+  @@map("rooms")
+}
+
+// =============================================================================
+// BOOKING
+// =============================================================================
+
+model Booking {
+  id             String        @id @default(cuid())
+  listingId      String
+  roomId         String?
+  studentId      String
+  ownerId        String
+  startDate      DateTime
+  endDate        DateTime
+  durationMonths Int
+  totalPrice     Decimal       @db.Decimal(12, 2)
+  status         BookingStatus @default(PENDING)
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  listing Listing  @relation(fields: [listingId], references: [id])
+  room    Room?    @relation(fields: [roomId], references: [id])
+  student User     @relation("StudentBookings", fields: [studentId], references: [id])
+  escrow  Escrow?
+  payment Payment?
+  // Review is only created when status = COMPLETED (enforced in review-service)
+  review  Review?
+
+  @@index([listingId])
+  @@index([studentId])
+  @@index([ownerId])
+  // (listingId + status) composite — core dashboard query: "bookings for listing X that are ACTIVE"
+  @@index([listingId, status])
+  // (studentId + status) composite — student history filtered by status
+  @@index([studentId, status])
+  @@map("bookings")
+}
+
+// =============================================================================
+// ESCROW
+// =============================================================================
+
+// CRITICAL: escrow-service owns this table. 100% test coverage required.
+// State machine: HOLDING → RELEASED (success) | REFUNDED (cancel) | DISPUTED
+model Escrow {
+  id         String       @id @default(cuid())
+  bookingId  String       @unique
+  amount     Decimal      @db.Decimal(12, 2)
+  status     EscrowStatus @default(HOLDING)
+  heldAt     DateTime     @default(now())
+  releasedAt DateTime?
+  refundedAt DateTime?
+  // Populated when status = DISPUTED or REFUNDED
+  reason     String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([status])
+  @@map("escrows")
+}
+
+// =============================================================================
+// PAYMENT
+// =============================================================================
+
+model Payment {
+  id                  String          @id @default(cuid())
+  bookingId           String          @unique
+  amount              Decimal         @db.Decimal(12, 2)
+  status              PaymentStatus   @default(PENDING)
+  provider            PaymentProvider @default(MIDTRANS)
+  // Midtrans-specific fields
+  midtransOrderId     String?         @unique
+  midtransToken       String?
+  midtransRedirectUrl String?
+  paidAt              DateTime?
+  failedAt            DateTime?
+  failureReason       String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([status])
+  @@index([midtransOrderId])
+  @@map("payments")
+}
+
+// =============================================================================
+// REVIEW
+// =============================================================================
+
+// Invariant: a Review row may only be created when its Booking.status = COMPLETED.
+// This is enforced by review-service before inserting. The @unique on bookingId
+// prevents duplicate reviews for the same booking.
+model Review {
+  id        String   @id @default(cuid())
+  bookingId String   @unique
+  listingId String
+  studentId String
+  // 1–5 stars; validated at the application layer
+  rating    Int
+  comment   String
+  imageUrls String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+  listing Listing @relation(fields: [listingId], references: [id])
+  student User    @relation(fields: [studentId], references: [id])
+
+  @@index([listingId])
+  @@index([studentId])
+  // Listing average-rating aggregations filter by listingId; composite with
+  // studentId speeds up "reviews written by student X for listing Y" lookup.
+  @@index([listingId, studentId])
+  @@map("reviews")
+}
+
+// =============================================================================
+// CHAT
+// =============================================================================
+
+// Stored in PostgreSQL for meta; messages body lives in MongoDB (chat-service).
+// This table is the authoritative record of which users belong to which room.
+model ChatRoom {
+  id        String   @id @default(cuid())
+  // Optional name for group rooms; null = direct message
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  ChatRoomMember[]
+  messages ChatMessage[]
+
+  @@map("chat_rooms")
+}
+
+model ChatRoomMember {
+  id         String   @id @default(cuid())
+  chatRoomId String
+  userId     String
+  joinedAt   DateTime @default(now())
+
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Each user can only be a member of a room once
+  @@unique([chatRoomId, userId])
+  @@index([userId])
+  @@map("chat_room_members")
+}
+
+// Lightweight mirror for push-notification previews; full body is in MongoDB.
+model ChatMessage {
+  id         String    @id @default(cuid())
+  chatRoomId String
+  senderId   String
+  body       String
+  imageUrls  String[]
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender   User     @relation(fields: [senderId], references: [id])
+
+  @@index([chatRoomId])
+  @@index([senderId])
+  // Latest-messages-in-room query: chatRoomId + createdAt DESC
+  @@index([chatRoomId, createdAt(sort: Desc)])
+  @@map("chat_messages")
+}
+
+// =============================================================================
+// NOTIFICATION
+// =============================================================================
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String
+  channel   NotificationChannel @default(IN_APP)
+  status    NotificationStatus  @default(UNREAD)
+  title     String
+  body      String
+  // Arbitrary payload forwarded to the client (e.g. { bookingId, listingId })
+  data      Json?
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  // Unread inbox query: userId + status
+  @@index([userId, status])
+  @@map("notifications")
+}
+
+// =============================================================================
+// KOSTIN POINTS
+// =============================================================================
+
+model KostInPoints {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions KostInPointsTransaction[]
+
+  @@map("kostin_points")
+}
+
+model KostInPointsTransaction {
+  id           String                @id @default(cuid())
+  pointsId     String
+  type         PointsTransactionType
+  // Positive = credit, negative = debit
+  amount       Int
+  balanceAfter Int
+  description  String
+  // Booking, review, or other entity that triggered this transaction
+  referenceId  String?
+  expiresAt    DateTime?
+  createdAt    DateTime              @default(now())
+
+  points KostInPoints @relation(fields: [pointsId], references: [id], onDelete: Cascade)
+
+  @@index([pointsId])
+  // History filtered by type (e.g. show all EARNED transactions)
+  @@index([pointsId, type])
+  @@map("kostin_points_transactions")
+}
