@@ -1,6 +1,6 @@
 # 🏠 KostIn — Tech Stack Guide
 
-> Dokumen ini dibuat agar kamu bisa **memahami sistemnya secara nyata**, bukan cuma vibe coding.
+> Dokumen ini dibuat agar kamu bisa **memahami sistemnya secara nyata**, 
 > Setiap teknologi dijelaskan: apa itu, kenapa dipilih, dan dipakai untuk apa di proyek ini.
 
 ---
@@ -199,14 +199,46 @@ Service ini kemungkinan menggunakan **FastAPI** atau **Flask** sebagai HTTP fram
 ## 5. Frontend & Mobile
 
 ### apps/web — Next.js (React)
+```
+Framework: Next.js 14.2.3 (App Router)
+UI: React 18.3
+Bahasa: TypeScript (strict mode)
+Package: @kostin/web
+```
 Next.js adalah framework React dengan fitur tambahan seperti:
 - **Server-Side Rendering (SSR)**: HTML di-render di server → lebih cepat dan SEO-friendly
 - **Static Site Generation (SSG)**: Halaman yang jarang berubah di-generate sekali (cocok untuk landing page)
-- **File-based routing**: Struktur folder = URL path
+- **File-based routing**: Struktur folder = URL path (`app/page.tsx`, `app/layout.tsx`)
 - **API Routes**: Bisa buat endpoint API langsung di project Next.js (berguna untuk BFF — Backend for Frontend)
 
-### apps/mobile — React Native
+Saat ini pakai App Router (bukan Pages Router lama), dan sudah terhubung ke `@kostin/types` untuk shared types serta `@kostin/config` untuk ESLint/TS config. Image domain `res.cloudinary.com` sudah di-whitelist di `next.config.js` untuk foto kost dari Cloudinary.
+
+**Belum dipilih (Phase 0, masih kosong):**
+- Styling — belum ada Tailwind CSS / CSS Modules / styled-components terpasang
+- State management — belum ada Zustand / Redux / Jotai
+- Data fetching — belum ada React Query (TanStack Query) / SWR untuk komunikasi ke backend services
+- UI component library — belum ada shadcn/ui, Radix, dsb.
+
+### apps/mobile — React Native (Expo)
+```
+Framework: Expo SDK 51 + Expo Router 3.5
+UI: React Native 0.74, React 18.2
+Bahasa: TypeScript
+Package: @kostin/mobile
+```
 React Native memungkinkan kamu menulis aplikasi mobile (Android & iOS) menggunakan **JavaScript/TypeScript**. Satu codebase untuk dua platform. Berbeda dengan WebView app — React Native menghasilkan komponen UI native yang sesungguhnya.
+
+**Kenapa Expo, bukan React Native CLI murni?**
+- Expo Router: file-based routing ala Next.js, tapi untuk mobile — konsisten dengan pola routing di `apps/web`
+- Managed workflow: build APK/IPA tanpa perlu setup Xcode/Android Studio native project secara manual (via EAS Build)
+- Akses cepat ke native API (kamera, lokasi, push notification) lewat `expo-*` packages tanpa native linking manual
+
+Konfigurasi di `app.json`: bundle identifier `id.kostin.app`, scheme `kostin` (untuk deep linking), dan dukungan platform iOS, Android, serta web (fallback via `expo start --web`).
+
+**Belum dipilih (Phase 0, masih kosong):**
+- Styling — belum ada NativeWind / Tamagui / styled-components
+- State management & data fetching — sama seperti web, belum ada
+- Push notification client (Firebase FCM) belum diintegrasikan di sisi mobile
 
 ---
 
