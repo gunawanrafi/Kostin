@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * HSL values for shadcn/ui's CSS-variable-driven primitives (Dialog,
+ * DropdownMenu, focus rings, …). Each one is the same KostIn token used
+ * elsewhere via Tailwind color classes (see tailwind.config.ts) — converted
+ * to HSL because that's the format shadcn/ui's generated components expect.
+ */
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* colors.surface */
+    --foreground: 240 3.4% 11.4%; /* colors.text */
+    --card: 0 0% 100%; /* colors.surface */
+    --card-foreground: 240 3.4% 11.4%; /* colors.text */
+    --popover: 0 0% 100%; /* colors.surface */
+    --popover-foreground: 240 3.4% 11.4%; /* colors.text */
+    --primary: 358.2 100% 67.6%; /* colors.accent */
+    --primary-foreground: 0 0% 100%; /* colors.surface */
+    --secondary: 240 3.4% 11.4%; /* colors.dark */
+    --secondary-foreground: 0 0% 100%; /* colors.surface */
+    --muted: 240 4.8% 95.9%; /* colors.bg */
+    --muted-foreground: 240 3.8% 46.1%; /* colors.textMid */
+    --accent: 240 4.8% 95.9%; /* colors.bg (shadcn hover surface) */
+    --accent-foreground: 240 3.4% 11.4%; /* colors.text */
+    --destructive: 0 84.2% 60.2%; /* colors.error */
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5.9% 90%; /* colors.border */
+    --input: 240 5.9% 90%; /* colors.border */
+    --ring: 358.2 100% 67.6%; /* colors.accent */
+    --radius: 0.625rem; /* borderRadius.lg (10px) */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-bg text-text font-body antialiased;
+  }
+}
