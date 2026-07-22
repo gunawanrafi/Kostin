@@ -1,23 +1,23 @@
-import Fastify from "fastify";
-import cors from "@fastify/cors";
-import type { ApiResponse } from "@kostin/types";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 
-const PORT = parseInt(process.env["PORT"] ?? "3002", 10);
-const HOST = process.env["HOST"] ?? "0.0.0.0";
+// Load the monorepo root .env before anything else. Everything below that
+// touches @kostin/database is dynamically imported *after* this call — a
+// static `import` would be hoisted and evaluated before this file's own
+// top-level code runs, so PrismaClient would already be constructed
+// against a missing DATABASE_URL by the time dotenv.config() executed.
+dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.env") });
 
-const app = Fastify({ logger: true });
+const { buildApp } = await import("./app.js");
+const { loadConfig } = await import("./config.js");
 
-await app.register(cors, { origin: process.env["CORS_ORIGIN"] ?? "*" });
-
-app.get("/health", async (): Promise<ApiResponse<{ status: string }>> => ({
-  data: { status: "ok" },
-  error: null,
-  meta: { requestId: crypto.randomUUID() },
-}));
+const config = loadConfig();
+const app = buildApp({ config });
 
 const start = async (): Promise<void> => {
   try {
-    await app.listen({ port: PORT, host: HOST });
+    await app.listen({ port: config.port, host: config.host });
   } catch (err) {
     app.log.error(err);
     process.exit(1);

@@ -16,12 +16,16 @@ if (process.env["NODE_ENV"] !== "production") {
 }
 
 export { PrismaClient } from "@prisma/client";
+// Value export (not `export type`) — services need the runtime `Prisma`
+// namespace too (Prisma.sql / Prisma.join for raw queries), not just types.
+export { Prisma } from "@prisma/client";
 
 // Enums — re-exported so services import from @kostin/database, not @prisma/client
 export {
   UserRole,
   UserStatus,
   ListingStatus,
+  KostType,
   RoomType,
   RoomStatus,
   BookingStatus,
@@ -30,7 +34,9 @@ export {
   PaymentProvider,
   NotificationChannel,
   NotificationStatus,
+  NotificationEventType,
   PointsTransactionType,
+  ParentInviteStatus,
 } from "@prisma/client";
 
 // Types — Prisma model types for use across services
@@ -49,4 +55,5 @@ export type {
   Notification,
   KostInPoints,
   KostInPointsTransaction,
+  ParentInvite,
 } from "@prisma/client";

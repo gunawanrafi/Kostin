@@ -2,6 +2,7 @@
   "name": "payment-service",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -15,6 +16,7 @@
     "@fastify/cors": "^9.0.0",
     "@kostin/types": "*",
     "@prisma/client": "^5.13.0",
+    "dotenv": "^16.4.5",
     "fastify": "^4.27.0",
     "midtrans-client": "^1.4.0"
   },

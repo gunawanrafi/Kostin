@@ -16,6 +16,9 @@ export interface ApiMeta {
   limit?: number;
   total?: number;
   requestId?: string;
+  // Cursor-based pagination (e.g. GET /listings): present when more results
+  // exist; pass it back as `?cursor=` to fetch the next page.
+  nextCursor?: string | null;
 }
 
 // --- User -------------------------------------------------------------------

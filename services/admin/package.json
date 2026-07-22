@@ -2,6 +2,7 @@
   "name": "admin-service",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -12,12 +13,20 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@elastic/elasticsearch": "^9.4.2",
     "@fastify/cors": "^9.0.0",
     "@fastify/jwt": "^8.0.0",
     "@kostin/types": "*",
     "@prisma/client": "^5.13.0",
+    "bullmq": "^5.79.2",
+    "cloudinary": "^2.10.0",
+    "dotenv": "^16.4.5",
     "fastify": "^4.27.0",
-    "ioredis": "^5.4.0"
+    "firebase-admin": "^13.10.0",
+    "ioredis": "^5.4.0",
+    "midtrans-client": "^1.4.3",
+    "mongoose": "8",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@kostin/config": "*",

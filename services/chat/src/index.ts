@@ -1,8 +1,14 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import type { ApiResponse } from "@kostin/types";
+
+// Load the monorepo root .env before anything else references process.env.
+dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.env") });
 
 const PORT = parseInt(process.env["PORT"] ?? "3007", 10);
 const HOST = process.env["HOST"] ?? "0.0.0.0";

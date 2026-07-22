@@ -15,11 +15,11 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^5.13.0"
+    "@prisma/client": "^6.0.0"
   },
   "devDependencies": {
     "@kostin/config": "*",
-    "prisma": "^5.13.0",
+    "prisma": "^6.0.0",
     "typescript": "^5.4.0"
   }
 }

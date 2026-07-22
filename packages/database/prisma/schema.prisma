@@ -15,6 +15,13 @@ enum UserRole {
   STUDENT
   OWNER
   ADMIN
+  PARENT
+}
+
+enum KostType {
+  KOST_PUTRA
+  KOST_PUTRI
+  KOST_CAMPUR
 }
 
 enum UserStatus {
@@ -83,11 +90,27 @@ enum NotificationStatus {
   READ
 }
 
+// Closed set of events notification-service accepts via POST /notifications/send.
+enum NotificationEventType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  PAYMENT_SUCCESS
+  NEW_INQUIRY
+  OTP_REQUEST
+}
+
 enum PointsTransactionType {
   EARNED
   REDEEMED
   EXPIRED
   ADJUSTED
+}
+
+enum ParentInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
 }
 
 // =============================================================================
@@ -105,6 +128,16 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
+  // Auth (owned by auth-service). Nullable because Google-only accounts have
+  // no password, and password-registered accounts have no googleId until linked.
+  passwordHash String?
+  googleId     String? @unique
+
+  // Owned by notification-service. The mobile app's current FCM device
+  // token; null until the app registers one. No token = push delivery is
+  // skipped for that user, but in-app notifications are unaffected.
+  fcmToken String?
+
   // Relations
   profile       UserProfile?
   listings      Listing[]
@@ -114,6 +147,7 @@ model User {
   points        KostInPoints?
   chatMembers   ChatRoomMember[]
   sentMessages  ChatMessage[]
+  parentInvites ParentInvite[]
 
   // Composite (role + status) covers "find all ACTIVE OWNERs" queries.
   // role alone is the (userId + role) index requested, since id is the PK.
@@ -124,11 +158,13 @@ model User {
 // Extended student / owner profile. lifestyle and preferences stored as JSON
 // so the shape can evolve without schema migrations.
 model UserProfile {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  bio        String?
-  university String?
-  major      String?
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  name        String?
+  avatar      String?
+  bio         String?
+  university  String?
+  major       String?
   yearOfStudy Int?
 
   // Example shape:
@@ -150,6 +186,29 @@ model UserProfile {
   @@map("user_profiles")
 }
 
+// A STUDENT invites a parent/guardian to link to their account (booking
+// oversight / notifications). Accepting the invite (creating the actual
+// parent<->student link once a PARENT account claims the token) is handled
+// by a future flow — this model only tracks the invite lifecycle.
+model ParentInvite {
+  id          String             @id @default(cuid())
+  studentId   String
+  parentEmail String?
+  parentPhone String?
+  token       String             @unique
+  status      ParentInviteStatus @default(PENDING)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([studentId, status])
+  @@map("parent_invites")
+}
+
 // =============================================================================
 // LISTING + ROOM
 // =============================================================================
@@ -165,12 +224,19 @@ model Listing {
   city        String        @default("Malang")
   lat         Float
   lng         Float
-  amenities   String[]
-  rules       String[]
-  imageUrls   String[]
-  status      ListingStatus @default(DRAFT)
+  type          KostType      @default(KOST_CAMPUR)
+  pricePerMonth Decimal       @db.Decimal(12, 2)
+  facilities    Json          @default("{}")
+  photos        Json          @default("[]")
+  amenities     String[]
+  rules         String[]
+  status        ListingStatus @default(DRAFT)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
+  // Soft delete (owned by listing-service). Non-null = deleted; every query
+  // outside of admin/audit tooling must filter deletedAt: null.
+  deletedAt DateTime?
 
   // Relations
   owner    User      @relation(fields: [ownerId], references: [id])
@@ -179,9 +245,10 @@ model Listing {
   reviews  Review[]
 
   @@index([ownerId])
-  // (listingId + status) — used when querying "active listings by this owner"
   @@index([ownerId, status])
   @@index([status])
+  @@index([type, status])
+  @@index([deletedAt])
   @@map("listings")
 }
 
@@ -193,8 +260,9 @@ model Room {
   pricePerMonth Decimal    @db.Decimal(12, 2)
   sizeSqm       Float?
   maxOccupants  Int        @default(1)
+  available     Boolean    @default(true)
   imageUrls     String[]
-  amenities     String[]
+  amenities     Json       @default("[]")
   status        RoomStatus @default(AVAILABLE)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -204,8 +272,8 @@ model Room {
   bookings Booking[]
 
   @@index([listingId])
-  // (listingId + status) — find available rooms in a listing efficiently
   @@index([listingId, status])
+  @@index([listingId, available])
   @@map("rooms")
 }
 
@@ -219,14 +287,25 @@ model Booking {
   roomId         String?
   studentId      String
   ownerId        String
-  startDate      DateTime
-  endDate        DateTime
+  checkIn        DateTime
+  checkOut       DateTime
   durationMonths Int
   totalPrice     Decimal       @db.Decimal(12, 2)
   status         BookingStatus @default(PENDING)
   notes          String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+
+  // Owned by booking-service. Identity documents for the student's booking
+  // request; either may be uploaded independently via POST /bookings/:id/documents.
+  ktmUrl String?
+  ktpUrl String?
+
+  // Status-transition audit trail (owned by booking-service)
+  confirmedAt  DateTime?
+  cancelledAt  DateTime?
+  // e.g. "AUTO_CANCEL_TIMEOUT" | "STUDENT_CANCELLED" | "OWNER_CANCELLED"
+  cancelReason String?
 
   // Relations
   listing Listing  @relation(fields: [listingId], references: [id])
@@ -393,6 +472,9 @@ model Notification {
   userId    String
   channel   NotificationChannel @default(IN_APP)
   status    NotificationStatus  @default(UNREAD)
+  // Nullable: only notifications created via notification-service's
+  // POST /notifications/send carry one of the 5 supported events.
+  eventType NotificationEventType?
   title     String
   body      String
   // Arbitrary payload forwarded to the client (e.g. { bookingId, listingId })

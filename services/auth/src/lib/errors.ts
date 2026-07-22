@@ -1,0 +1,33 @@
+// Error codes returned in the `error.code` field of the { data, error, meta }
+// envelope. Kept as a const object (not a TS enum) so the values are plain
+// string literals both at compile time and at runtime.
+export const AuthErrorCode = {
+  VALIDATION_ERROR: "VALIDATION_ERROR",
+  USER_EXISTS: "USER_EXISTS",
+  INVALID_CREDENTIALS: "INVALID_CREDENTIALS",
+  GOOGLE_TOKEN_INVALID: "GOOGLE_TOKEN_INVALID",
+  OTP_INVALID: "OTP_INVALID",
+  OTP_EXPIRED: "OTP_EXPIRED",
+  OTP_RATE_LIMITED: "OTP_RATE_LIMITED",
+  OTP_COOLDOWN: "OTP_COOLDOWN",
+  TOKEN_INVALID: "TOKEN_INVALID",
+  TOKEN_EXPIRED: "TOKEN_EXPIRED",
+  NOT_FOUND: "NOT_FOUND",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
+} as const;
+
+export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];
+
+// Thrown by service functions; caught by the Fastify error handler in app.ts
+// and translated into the standard { data, error, meta } response shape.
+export class AppError extends Error {
+  readonly statusCode: number;
+  readonly code: AuthErrorCode;
+
+  constructor(statusCode: number, code: AuthErrorCode, message: string) {
+    super(message);
+    this.name = "AppError";
+    this.statusCode = statusCode;
+    this.code = code;
+  }
+}
