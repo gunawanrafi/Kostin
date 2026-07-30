@@ -10,8 +10,8 @@ import { StepInfoDasar } from "./_components/StepInfoDasar";
 import { StepFasilitas } from "./_components/StepFasilitas";
 import { StepFotoMedia } from "./_components/StepFotoMedia";
 import { StepPreviewPublish } from "./_components/StepPreviewPublish";
-import { INITIAL_FORM_STATE, STEP_LABELS, type KostFormState } from "./_components/types";
-import { useCreateListing } from "@/lib/hooks/useListings";
+import { DEFAULT_COORDS, INITIAL_FORM_STATE, STEP_LABELS, type KostFormState } from "./_components/types";
+import { useCreateListing, useUploadListingPhotos } from "@/lib/hooks/useListings";
 import type { ListingTipe } from "@/lib/types";
 
 const TYPE_LABEL_TO_TIPE: Record<string, ListingTipe> = {
@@ -20,10 +20,25 @@ const TYPE_LABEL_TO_TIPE: Record<string, ListingTipe> = {
   Campur: "CAMPUR",
 };
 
-// Malang city-center fallback — the wizard's "Peta Interaktif" box is a
-// placeholder, not a real map picker yet, so there's no lat/lng input to
-// read from the form.
-const FALLBACK_COORDS = { lat: -7.9666, lng: 112.6326 };
+// Fallback only when the owner clears/garbles the manual coordinate inputs —
+// the wizard now collects lat/lng directly (see StepInfoDasar), so the saved
+// coordinate reflects owner intent rather than a silent hardcoded value.
+const FALLBACK_LAT = Number(DEFAULT_COORDS.lat);
+const FALLBACK_LNG = Number(DEFAULT_COORDS.lng);
+
+function parseCoord(value: string, fallback: number): number {
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+// Ordered list of the actual File objects the owner selected, main photo
+// first. Empty when nothing was uploaded in the Foto & Media step.
+function collectPhotoFiles(form: KostFormState): File[] {
+  const files: File[] = [];
+  if (form.mainPhoto) files.push(form.mainPhoto.file);
+  for (const photo of form.roomPhotos) files.push(photo.file);
+  return files;
+}
 
 function mapFormToCreateListingInput(form: KostFormState) {
   return {
@@ -35,12 +50,21 @@ function mapFormToCreateListingInput(form: KostFormState) {
     kelurahan: form.district,
     kecamatan: form.district,
     city: form.city,
-    lat: FALLBACK_COORDS.lat,
-    lng: FALLBACK_COORDS.lng,
+    lat: parseCoord(form.lat, FALLBACK_LAT),
+    lng: parseCoord(form.lng, FALLBACK_LNG),
     type: TYPE_LABEL_TO_TIPE[form.type] ?? "CAMPUR",
     pricePerMonth: Number(form.price) || 0,
     amenities: [...form.roomFacilities, ...form.sharedFacilities],
   };
+}
+
+function toMessage(err: unknown, fallback: string): string {
+  const message = axios.isAxiosError<{ error?: { message?: string } }>(err)
+    ? err.response?.data?.error?.message
+    : err instanceof Error
+      ? err.message
+      : undefined;
+  return message ?? fallback;
 }
 
 const NEXT_LABELS = [
@@ -55,7 +79,15 @@ export default function TambahKostPage(): JSX.Element {
   const [step, setStep] = React.useState(0);
   const [form, setForm] = React.useState<KostFormState>(INITIAL_FORM_STATE);
   const [error, setError] = React.useState<string | undefined>();
+  // When the listing is created but its photos fail to upload, we keep the new
+  // listing id so the owner can retry the upload without recreating the listing.
+  const [photoError, setPhotoError] = React.useState<string | undefined>();
+  const [createdId, setCreatedId] = React.useState<string | undefined>();
+  const [uploadPercent, setUploadPercent] = React.useState(0);
   const createListing = useCreateListing();
+  const uploadPhotos = useUploadListingPhotos();
+
+  const busy = createListing.isPending || uploadPhotos.isPending;
 
   const handleChange = (patch: Partial<KostFormState>): void => setForm((prev) => ({ ...prev, ...patch }));
 
@@ -67,22 +99,43 @@ export default function TambahKostPage(): JSX.Element {
     }
   };
 
+  // Uploads the selected photos to an already-created listing, then navigates
+  // to the listings page. Photo failures are surfaced separately (the listing
+  // itself already exists) so the owner is never misled into thinking the
+  // photos saved when they didn't.
+  const uploadPhotosThenFinish = async (listingId: string): Promise<void> => {
+    const files = collectPhotoFiles(form);
+    if (files.length === 0) {
+      router.push("/listings");
+      return;
+    }
+    setPhotoError(undefined);
+    setUploadPercent(0);
+    try {
+      await uploadPhotos.mutateAsync({ id: listingId, files, onProgress: setUploadPercent });
+      router.push("/listings");
+    } catch (err) {
+      setPhotoError(toMessage(err, "Foto gagal diunggah."));
+    }
+  };
+
   const handleNext = async (): Promise<void> => {
     if (step < STEP_LABELS.length - 1) {
       setStep((s) => s + 1);
       return;
     }
+    // Retry path: the listing already exists, only the photo upload failed.
+    if (createdId) {
+      await uploadPhotosThenFinish(createdId);
+      return;
+    }
     setError(undefined);
     try {
-      await createListing.mutateAsync(mapFormToCreateListingInput(form));
-      router.push("/listings");
+      const listing = await createListing.mutateAsync(mapFormToCreateListingInput(form));
+      setCreatedId(listing.id);
+      await uploadPhotosThenFinish(listing.id);
     } catch (err) {
-      const message = axios.isAxiosError<{ error?: { message?: string } }>(err)
-        ? err.response?.data?.error?.message
-        : err instanceof Error
-          ? err.message
-          : undefined;
-      setError(message ?? "Gagal menyimpan listing. Coba lagi.");
+      setError(toMessage(err, "Gagal menyimpan listing. Coba lagi."));
     }
   };
 
@@ -113,13 +166,42 @@ export default function TambahKostPage(): JSX.Element {
         <div className="rounded-lg border border-error bg-errorSoft px-4 py-3 text-[13px] text-error">{error}</div>
       ) : null}
 
+      {uploadPhotos.isPending ? (
+        <div className="rounded-lg border border-accentBorder bg-accentSoft px-4 py-3">
+          <div className="mb-1.5 flex justify-between text-[12.5px] font-semibold text-accent">
+            <span>Mengunggah foto…</span>
+            <span>{uploadPercent}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white">
+            <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${uploadPercent}%` }} />
+          </div>
+        </div>
+      ) : null}
+
+      {photoError ? (
+        <div className="rounded-lg border border-warningBorder bg-warningSoft px-4 py-3 text-[13px] text-warningTextDeep">
+          <div className="font-semibold">Listing berhasil dibuat, tetapi foto gagal diunggah.</div>
+          <div className="mt-0.5 text-[12px]">{photoError}</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <WButton type="button" size="sm" onClick={() => void handleNext()} loading={busy}>
+              Coba Unggah Ulang Foto
+            </WButton>
+            <WButton type="button" size="sm" variant="outline" onClick={() => router.push("/listings")}>
+              Lanjut ke Properti Saya
+            </WButton>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex justify-between pt-1">
-        <WButton type="button" variant="outline" onClick={handleBack}>
+        <WButton type="button" variant="outline" onClick={handleBack} disabled={busy}>
           ← Kembali
         </WButton>
-        <WButton type="button" onClick={handleNext} loading={createListing.isPending}>
-          {NEXT_LABELS[step]}
-        </WButton>
+        {photoError ? null : (
+          <WButton type="button" onClick={handleNext} loading={busy}>
+            {NEXT_LABELS[step]}
+          </WButton>
+        )}
       </div>
     </>
   );

@@ -15,7 +15,12 @@ export interface StepFotoMediaProps {
 function filesToPhotos(files: FileList | File[]): WizardPhoto[] {
   return Array.from(files)
     .filter((f) => f.type.startsWith("image/"))
-    .map((f) => ({ id: `${f.name}-${f.size}-${Date.now()}-${Math.random()}`, url: URL.createObjectURL(f), name: f.name }));
+    .map((f) => ({
+      id: `${f.name}-${f.size}-${Date.now()}-${Math.random()}`,
+      url: URL.createObjectURL(f),
+      name: f.name,
+      file: f,
+    }));
 }
 
 // Drag & drop upload zone for the single "foto utama" slot. Accepts both

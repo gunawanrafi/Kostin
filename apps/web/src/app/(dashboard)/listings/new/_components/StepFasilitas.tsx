@@ -41,18 +41,29 @@ export function StepFasilitas({ form, onChange }: StepFasilitasProps): JSX.Eleme
   return (
     <div className="flex flex-col gap-6">
       <WSectionCard title="Tipe & Kapasitas Kamar">
+        {/* Jumlah Unit & Kapasitas belong to per-room data (a Room model with
+            maxOccupants / room count). The create-listing flow has no
+            room-creation step or backend field for these yet, so they are
+            disabled rather than collected and silently dropped. */}
+        <div className="mb-1 rounded-lg border border-warningBorder bg-warningSoft px-3 py-2 text-[11.5px] leading-relaxed text-warningTextDeep">
+          Pengelolaan unit &amp; kapasitas per kamar belum tersedia — akan hadir bersama fitur manajemen kamar.
+        </div>
         <div className="flex gap-4">
           <WField
             label="Jumlah Unit"
             placeholder="3"
-            value={form.unitCount}
-            onChange={(e) => onChange({ unitCount: e.target.value.replace(/\D/g, "") })}
+            value=""
+            disabled
+            note="Belum tersedia"
+            className="cursor-not-allowed opacity-60"
           />
           <WField
             label="Kapasitas (orang/kamar)"
             placeholder="1"
-            value={form.capacity}
-            onChange={(e) => onChange({ capacity: e.target.value.replace(/\D/g, "") })}
+            value=""
+            disabled
+            note="Belum tersedia"
+            className="cursor-not-allowed opacity-60"
           />
         </div>
       </WSectionCard>

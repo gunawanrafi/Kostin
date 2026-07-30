@@ -5,7 +5,6 @@ import { WSectionCard } from "@/components/ui/WSectionCard";
 import { WCard } from "@/components/ui/WCard";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
 import type { KostFormState } from "./types";
 
 export interface StepPreviewPublishProps {
@@ -44,32 +43,23 @@ export function StepPreviewPublish({ form, onChange }: StepPreviewPublishProps):
               onChange={(e) => onChange({ price: e.target.value.replace(/[^\d]/g, "") })}
             />
           </div>
-          <label className="flex items-center justify-between gap-4 rounded-lg bg-bg px-3.5 py-3">
+          {/* Deposit has no column on the Listing model (or anywhere in the
+              Prisma schema) yet, so the toggle/nominal are disabled instead of
+              collecting a value that would silently go nowhere. */}
+          <label className="flex items-center justify-between gap-4 rounded-lg bg-bg px-3.5 py-3 opacity-60">
             <div>
               <div className="text-[13.5px] font-semibold text-text">Uang Muka / Deposit Keamanan</div>
-              <div className="mt-0.5 text-[11.5px] text-textMid">Akan dikembalikan di akhir masa sewa.</div>
+              <div className="mt-0.5 text-[11.5px] text-warningTextDeep">Belum tersedia — fitur deposit akan hadir di fase berikutnya.</div>
             </div>
             <button
               type="button"
-              onClick={() => onChange({ depositEnabled: !form.depositEnabled })}
-              className={cn(
-                "flex h-[22px] w-10 shrink-0 items-center rounded-full p-0.5 transition-colors",
-                form.depositEnabled ? "justify-end bg-accent" : "justify-start bg-border",
-              )}
-              aria-pressed={form.depositEnabled}
+              disabled
+              aria-pressed={false}
+              className="flex h-[22px] w-10 shrink-0 cursor-not-allowed items-center justify-start rounded-full bg-border p-0.5"
             >
               <span className="h-[18px] w-[18px] rounded-full bg-white shadow" />
             </button>
           </label>
-          {form.depositEnabled ? (
-            <WField
-              label="Nominal Deposit"
-              prefix="Rp"
-              placeholder="500.000"
-              value={form.deposit}
-              onChange={(e) => onChange({ deposit: e.target.value.replace(/[^\d]/g, "") })}
-            />
-          ) : null}
         </WSectionCard>
       </div>
 

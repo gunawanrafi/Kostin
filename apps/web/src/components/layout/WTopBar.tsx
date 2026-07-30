@@ -25,7 +25,7 @@ export interface WTopBarProps {
 // Mirrors the source prototype's WTopBar: 64px dark bar, logo left, notif
 // bell (badge count) + avatar dropdown right.
 export function WTopBar({
-  ownerName = "Pak Budi",
+  ownerName = "Pemilik",
   avatarUrl,
   notificationCount = 0,
   onNotificationsClick,

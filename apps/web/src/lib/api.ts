@@ -12,6 +12,7 @@ const SERVICE_URLS = {
   user: process.env["USER_SERVICE_URL"] ?? "http://localhost:3002",
   listing: process.env["LISTING_SERVICE_URL"] ?? "http://localhost:3003",
   booking: process.env["BOOKING_SERVICE_URL"] ?? "http://localhost:3004",
+  notification: process.env["NOTIFICATION_SERVICE_URL"] ?? "http://localhost:3008",
 } as const;
 
 // The access token is stored httpOnly (never readable by client JS, so a
@@ -46,6 +47,7 @@ export const authenticatedAuthApi = createClient(SERVICE_URLS.auth);
 export const userApi = createClient(SERVICE_URLS.user);
 export const listingApi = createClient(SERVICE_URLS.listing);
 export const bookingApi = createClient(SERVICE_URLS.booking);
+export const notificationApi = createClient(SERVICE_URLS.notification);
 
 // Normalizes any backend-service error (validation, 401, 500, network
 // failure) into this app's { data, error, meta } envelope so every Route

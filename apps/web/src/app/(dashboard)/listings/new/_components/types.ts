@@ -2,7 +2,15 @@ export interface WizardPhoto {
   id: string;
   url: string;
   name: string;
+  // The actual File is kept (not just the object-URL preview) so it can be
+  // uploaded to listing-service's POST /listings/:id/photos after the listing
+  // is created.
+  file: File;
 }
+
+// Malang city-center — the default map coordinate until a real map picker
+// exists (Phase 2). Owners can override lat/lng manually in Step 1.
+export const DEFAULT_COORDS = { lat: "-7.9666", lng: "112.6326" };
 
 export interface KostFormState {
   name: string;
@@ -11,6 +19,8 @@ export interface KostFormState {
   address: string;
   city: string;
   district: string;
+  lat: string;
+  lng: string;
   roomFacilities: string[];
   sharedFacilities: string[];
   unitCount: string;
@@ -29,6 +39,8 @@ export const INITIAL_FORM_STATE: KostFormState = {
   address: "",
   city: "Malang",
   district: "Lowokwaru",
+  lat: DEFAULT_COORDS.lat,
+  lng: DEFAULT_COORDS.lng,
   roomFacilities: [],
   sharedFacilities: [],
   unitCount: "",
@@ -36,7 +48,7 @@ export const INITIAL_FORM_STATE: KostFormState = {
   mainPhoto: null,
   roomPhotos: [],
   price: "",
-  depositEnabled: true,
+  depositEnabled: false,
   deposit: "",
 };
 

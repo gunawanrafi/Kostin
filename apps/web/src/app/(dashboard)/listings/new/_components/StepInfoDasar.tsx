@@ -2,7 +2,7 @@ import { MapPin } from "lucide-react";
 import { WField } from "@/components/ui/WField";
 import { WSelect } from "@/components/ui/WSelect";
 import { WSectionCard } from "@/components/ui/WSectionCard";
-import type { KostFormState } from "./types";
+import { DEFAULT_COORDS, type KostFormState } from "./types";
 
 export interface StepInfoDasarProps {
   form: KostFormState;
@@ -53,11 +53,34 @@ export function StepInfoDasar({ form, onChange }: StepInfoDasarProps): JSX.Eleme
             <option>Blimbing</option>
           </WSelect>
         </div>
-        <div className="relative flex h-[150px] items-center justify-center overflow-hidden rounded-[10px] bg-mapBg">
-          <MapPin className="h-6 w-6 text-textMid" />
-          <span className="absolute left-3 top-2.5 font-mono text-[10px] text-black/35">
-            [ Peta Interaktif — {form.city} ]
-          </span>
+        {/* Titik Koordinat: a real interactive map picker is a later phase.
+            Until then we collect lat/lng manually so the saved coordinates
+            reflect what the owner actually intends — no silent hardcoded
+            value. Defaults to Malang city center; owners refine as needed. */}
+        <div className="flex flex-col gap-2 rounded-[10px] border border-borderLight bg-bg px-3.5 py-3">
+          <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-textSec">
+            <MapPin className="h-3.5 w-3.5" /> Titik Koordinat Lokasi
+          </div>
+          <div className="flex gap-3">
+            <WField
+              label="Latitude"
+              inputMode="decimal"
+              placeholder={DEFAULT_COORDS.lat}
+              value={form.lat}
+              onChange={(e) => onChange({ lat: e.target.value.replace(/[^\d.-]/g, "") })}
+            />
+            <WField
+              label="Longitude"
+              inputMode="decimal"
+              placeholder={DEFAULT_COORDS.lng}
+              value={form.lng}
+              onChange={(e) => onChange({ lng: e.target.value.replace(/[^\d.-]/g, "") })}
+            />
+          </div>
+          <p className="text-[11px] leading-relaxed text-textLight">
+            Peta interaktif belum tersedia — masukkan koordinat manual (default: pusat Kota Malang). Anda bisa
+            menyalinnya dari Google Maps.
+          </p>
         </div>
       </WSectionCard>
     </div>
