@@ -32,6 +32,20 @@ export class NoopOtpSender implements OtpSender {
   }
 }
 
+// Dev fallback when no Twilio credentials are configured: nothing is
+// actually delivered, so the code is written to the server log instead. This
+// is deliberately loud — a silent NoopOtpSender makes a dev flow look like it
+// "sent" something when nothing left the process. Never selected when
+// TWILIO_ACCOUNT_SID is set (see buildApp), so it cannot mask a real send.
+export class ConsoleOtpSender implements OtpSender {
+  async sendWhatsappOtp(phone: string, code: string): Promise<void> {
+    console.warn(
+      `[auth][DEV] No Twilio credentials configured — nothing was delivered. ` +
+        `Code for ${phone} is: ${code}`,
+    );
+  }
+}
+
 export function generateOtpCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }

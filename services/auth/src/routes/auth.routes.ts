@@ -8,6 +8,8 @@ import {
   refreshTokens,
   registerUser,
   requestOtpForPhone,
+  requestPasswordReset,
+  resetPassword,
   verifyOtpAndIssueTokens,
 } from "../services/auth.service.js";
 import {
@@ -16,6 +18,8 @@ import {
   logoutSchema,
   otpRequestSchema,
   otpVerifySchema,
+  passwordForgotSchema,
+  passwordResetSchema,
   refreshSchema,
   registerSchema,
 } from "../lib/validation.js";
@@ -57,6 +61,20 @@ const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
   fastify.post("/otp/verify", async (request, reply) => {
     const body = otpVerifySchema.parse(request.body);
     const result = await verifyOtpAndIssueTokens(deps, body);
+    return reply.status(200).send(ok(result));
+  });
+
+  // Always 200 with an identical body, whether or not the email is
+  // registered — see requestPasswordReset for why.
+  fastify.post("/password/forgot", async (request, reply) => {
+    const body = passwordForgotSchema.parse(request.body);
+    const result = await requestPasswordReset(deps, body);
+    return reply.status(200).send(ok(result));
+  });
+
+  fastify.post("/password/reset", async (request, reply) => {
+    const body = passwordResetSchema.parse(request.body);
+    const result = await resetPassword(deps, body);
     return reply.status(200).send(ok(result));
   });
 

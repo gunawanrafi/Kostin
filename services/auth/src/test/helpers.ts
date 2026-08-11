@@ -90,6 +90,13 @@ export function createFakeUserRepository(seed: User[] = []): UserRepository & { 
       user.updatedAt = new Date();
       return clone(user);
     },
+    updatePassword: async (id, passwordHash) => {
+      const user = users.find((u) => u.id === id);
+      if (!user) throw new Error("user not found");
+      user.passwordHash = passwordHash;
+      user.updatedAt = new Date();
+      return clone(user);
+    },
   };
 }
 

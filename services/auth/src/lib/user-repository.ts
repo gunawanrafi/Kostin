@@ -20,6 +20,7 @@ export interface UserRepository {
   create(input: CreateUserInput): Promise<User>;
   linkGoogleId(id: string, googleId: string): Promise<User>;
   activate(id: string): Promise<User>;
+  updatePassword(id: string, passwordHash: string): Promise<User>;
 }
 
 export function createPrismaUserRepository(prisma: PrismaClient): UserRepository {
@@ -33,5 +34,7 @@ export function createPrismaUserRepository(prisma: PrismaClient): UserRepository
     create: (input) => prisma.user.create({ data: input }),
     linkGoogleId: (id, googleId) => prisma.user.update({ where: { id }, data: { googleId } }),
     activate: (id) => prisma.user.update({ where: { id }, data: { status: "ACTIVE" } }),
+    updatePassword: (id, passwordHash) =>
+      prisma.user.update({ where: { id }, data: { passwordHash } }),
   };
 }

@@ -6,6 +6,7 @@ import type { GoogleVerifier } from "../lib/google.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken, TokenError } from "../lib/jwt.js";
 import type { OtpSender } from "../lib/otp.js";
 import { requestOtp, verifyOtp } from "../lib/otp-store.js";
+import { consumeResetCode, issueResetCode } from "../lib/password-reset-store.js";
 import { normalizePhone } from "../lib/phone.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import type { RedisLike } from "../lib/redis.js";
@@ -17,6 +18,8 @@ import type {
   LogoutInput,
   OtpRequestInput,
   OtpVerifyInput,
+  PasswordForgotInput,
+  PasswordResetInput,
   RefreshInput,
   RegisterInput,
 } from "../lib/validation.js";
@@ -182,4 +185,64 @@ export async function logoutUser(deps: AuthDeps, input: LogoutInput): Promise<vo
     // token still results in "not logged in", which is the caller's goal.
     if (!(err instanceof TokenError)) throw err;
   }
+}
+
+// ── Password reset (A5 → A6 → A7) ──────────────────────────────────────────
+//
+// DELIVERY: this project has no email transport of any kind — no SMTP, no
+// SendGrid/Resend, and notification-service sends FCM push only. The reset
+// code is therefore delivered over the one channel that actually exists: the
+// OTP sender (Twilio WhatsApp), addressed to the phone registered on the
+// account the email belongs to. With no Twilio credentials configured, the
+// ConsoleOtpSender logs the code to the server output instead of pretending
+// anything was delivered.
+//
+// The response is deliberately identical whether or not the email matches an
+// account, so this endpoint cannot be used to enumerate registered users.
+// `channel` is a constant, not a per-user fact, so it leaks nothing.
+export async function requestPasswordReset(
+  deps: AuthDeps,
+  input: PasswordForgotInput,
+): Promise<{ channel: "whatsapp"; expiresInSec: number }> {
+  const user = await deps.userRepository.findByEmail(input.email);
+
+  if (user) {
+    const issued = await issueResetCode(deps.redis, input.email, deps.config);
+    // null => cooldown still active; deliberately still answered as success
+    // (see issueResetCode) so repeat calls stay indistinguishable.
+    if (issued) {
+      await deps.otpSender.sendWhatsappOtp(user.phone, issued.code);
+    }
+  }
+
+  return { channel: "whatsapp", expiresInSec: deps.config.otpTtlSec };
+}
+
+// Verifies the reset code and replaces the password hash. Accounts created
+// via Google (passwordHash === null) are allowed through — this sets a
+// password for the first time, which is the same operation.
+export async function resetPassword(
+  deps: AuthDeps,
+  input: PasswordResetInput,
+): Promise<{ success: true }> {
+  // Code check runs first. For an unknown email there is no stored code, so
+  // this throws RESET_CODE_EXPIRED — the same error a stale code produces,
+  // keeping unknown addresses indistinguishable from expired ones.
+  await consumeResetCode(deps.redis, input.email, input.code, deps.config);
+
+  const user = await deps.userRepository.findByEmail(input.email);
+  if (!user) {
+    // Only reachable if the account was deleted between request and reset.
+    throw new AppError(410, AuthErrorCode.RESET_CODE_EXPIRED, "Reset code is no longer valid");
+  }
+
+  const passwordHash = await hashPassword(input.newPassword);
+  await deps.userRepository.updatePassword(user.id, passwordHash);
+
+  // NOTE: existing refresh sessions are intentionally NOT revoked here.
+  // refresh-store keys sessions per-jti (`refresh:<userId>:<jti>`) and
+  // RedisLike exposes no scan/keys, so there is no way to enumerate a user's
+  // sessions without widening that interface. Worth doing as a follow-up:
+  // after a reset the old sessions arguably should be killed.
+  return { success: true };
 }

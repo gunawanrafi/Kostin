@@ -43,6 +43,18 @@ export const refreshSchema = z.object({
 });
 export type RefreshInput = z.infer<typeof refreshSchema>;
 
+export const passwordForgotSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+export type PasswordForgotInput = z.infer<typeof passwordForgotSchema>;
+
+export const passwordResetSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  code: z.string().regex(/^\d{6}$/, "Reset code must be 6 digits"),
+  newPassword: passwordSchema,
+});
+export type PasswordResetInput = z.infer<typeof passwordResetSchema>;
+
 export const logoutSchema = z.object({
   refreshToken: z.string().min(10),
 });

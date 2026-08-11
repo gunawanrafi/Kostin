@@ -3,7 +3,7 @@ import { ACCESS_TOKEN_COOKIE } from "@/lib/auth-cookies";
 
 // Auth pages: reachable signed-out, but bounce to the dashboard if you
 // already have a token (no point showing a login form to someone logged in).
-const AUTH_PATHS = ["/login", "/register"];
+const AUTH_PATHS = ["/login", "/register", "/forgot-password"];
 
 // Marketing pages: reachable in BOTH states. Deliberately not in AUTH_PATHS —
 // a landing page shouldn't yank a signed-in owner to the dashboard just for

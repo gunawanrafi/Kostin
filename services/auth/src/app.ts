@@ -7,7 +7,7 @@ import { loadConfig, type AuthConfig } from "./config.js";
 import { AppError, AuthErrorCode } from "./lib/errors.js";
 import { fail } from "./lib/response.js";
 import { GoogleOAuthVerifier, type GoogleVerifier } from "./lib/google.js";
-import { NoopOtpSender, TwilioOtpSender, type OtpSender } from "./lib/otp.js";
+import { ConsoleOtpSender, TwilioOtpSender, type OtpSender } from "./lib/otp.js";
 import type { RedisLike } from "./lib/redis.js";
 import { createPrismaUserRepository, type UserRepository } from "./lib/user-repository.js";
 import authRoutes from "./routes/auth.routes.js";
@@ -37,11 +37,15 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     config,
     userRepository: options.userRepository ?? createPrismaUserRepository(prisma),
     redis: options.redis,
+    // Without Twilio credentials nothing can actually be delivered, so the
+    // dev fallback logs the code rather than silently dropping it — otherwise
+    // OTP and password-reset flows look like they sent something when they
+    // didn't. NoopOtpSender is still exported for tests that want silence.
     otpSender:
       options.otpSender ??
       (config.twilioAccountSid
         ? new TwilioOtpSender(config.twilioAccountSid, config.twilioAuthToken, config.twilioWhatsappFrom)
-        : new NoopOtpSender()),
+        : new ConsoleOtpSender()),
     googleVerifier: options.googleVerifier ?? new GoogleOAuthVerifier(config.googleClientId),
   };
 

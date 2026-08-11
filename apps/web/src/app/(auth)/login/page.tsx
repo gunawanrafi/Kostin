@@ -79,18 +79,9 @@ export default function LoginPage(): JSX.Element {
           />
           Ingat saya
         </label>
-        {/* TODO(A5/A7 — Tier 2): link to /forgot-password once the reset flow
-            exists. It needs two auth-service endpoints that are NOT built yet:
-            POST /auth/password/forgot and POST /auth/password/reset (the
-            service currently exposes no password-reset route at all — see
-            GAP_ANALYSIS.md §5). Rendered as inert text rather than href="#"
-            so it doesn't look clickable and then do nothing. */}
-        <span
-          title="Belum tersedia — fitur reset kata sandi sedang disiapkan"
-          className="cursor-not-allowed text-[12.5px] font-semibold text-textLight"
-        >
+        <Link href="/forgot-password" className="text-[12.5px] font-semibold text-accent">
           Lupa kata sandi?
-        </span>
+        </Link>
       </div>
 
       <WButton type="submit" fullWidth loading={login.isPending}>
