@@ -141,9 +141,12 @@ export default function ListingsPage(): JSX.Element {
                       <Badge variant={STATUS_VARIANT[listing.status]}>{STATUS_LABEL[listing.status]}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <WButton type="button" variant="dark" size="sm">
+                      <Link
+                        href={`/listings/${listing.id}`}
+                        className={cn(buttonVariants({ variant: "dark", size: "sm" }))}
+                      >
                         Lihat Detail
-                      </WButton>
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))}

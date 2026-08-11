@@ -1,10 +1,12 @@
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Clock } from "lucide-react";
 import { WCard } from "@/components/ui/WCard";
-import { WButton } from "@/components/ui/WButton";
+import { buttonVariants } from "@/components/ui/WButton";
 import { Badge } from "@/components/ui/badge";
 import { colors } from "@/lib/design-tokens";
+import { cn } from "@/lib/utils";
 import type { Listing } from "@/lib/types";
 
 // Diagonal hatch standing in for a missing cover photo — the design's
@@ -51,17 +53,12 @@ export function PendingReviewCard({ listing }: PendingReviewCardProps): React.JS
         </p>
       </div>
 
-      {/* No listing detail/preview route exists yet — there is no
-          /listings/[id] page and no /api/listings/[id] proxy, even though
-          listing-service already implements GET /:id (GAP_ANALYSIS.md X3).
-          Rendered disabled rather than pointed at a route that would 404.
-          Tooltip sits on the wrapper because WButton applies
-          `disabled:pointer-events-none`. */}
-      <span title="Pratinjau tersedia setelah halaman detail listing dibuat" className="inline-flex shrink-0">
-        <WButton type="button" variant="outline" size="sm" disabled aria-disabled>
-          Pratinjau
-        </WButton>
-      </span>
+      <Link
+        href={`/listings/${listing.id}`}
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
+      >
+        Pratinjau
+      </Link>
     </WCard>
   );
 }

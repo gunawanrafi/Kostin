@@ -29,6 +29,22 @@ export function useListings(params: ListingsQueryParams = {}) {
   });
 }
 
+// Single listing by id. Keyed under the "listings" prefix so the existing
+// create/photo-upload mutations, which invalidate ["listings"], also refresh
+// an open detail view.
+export function useListing(id: string) {
+  return useQuery({
+    queryKey: ["listings", "detail", id],
+    enabled: Boolean(id),
+    queryFn: async (): Promise<Listing> => {
+      const { data } = await browserApi.get<ApiResponse<Listing>>(`/listings/${id}`);
+      if (data.error) throw new Error(data.error.message);
+      if (!data.data) throw new Error("Empty response from server");
+      return data.data;
+    },
+  });
+}
+
 // Mirrors listing-service's createListingSchema (services/listing/src/lib/validation.ts).
 export interface CreateListingInput {
   title: string;
