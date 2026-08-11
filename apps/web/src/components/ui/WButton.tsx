@@ -5,7 +5,11 @@ import { cn } from "@/lib/utils";
 
 // Mirrors the source prototype's WBtn: 5 variants, 8px radius, Inter/600
 // label. sm/md sizing extends the source's small/regular scale.
-const buttonVariants = cva(
+//
+// Exported so link-shaped CTAs (e.g. the marketing landing page) can render a
+// real <Link> that looks identical, instead of nesting a <button> inside an
+// <a> — which is invalid HTML and confuses screen readers.
+export const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-body font-semibold transition-colors disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {

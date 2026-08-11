@@ -54,6 +54,35 @@ export interface Listing {
   distanceKm?: number;
 }
 
+export type NotificationChannel = "PUSH" | "WHATSAPP" | "SMS" | "EMAIL" | "IN_APP";
+export type NotificationStatus = "UNREAD" | "READ";
+
+// The 5 events notification-service supports (see its validation.ts /
+// NotificationEventType in the Prisma schema). `null` is legitimate — the
+// column is nullable for notifications not created via POST /send.
+export type NotificationEventType =
+  | "BOOKING_CONFIRMED"
+  | "BOOKING_CANCELLED"
+  | "PAYMENT_SUCCESS"
+  | "NEW_INQUIRY"
+  | "OTP_REQUEST";
+
+// Named AppNotification, not Notification: `Notification` is a lib.dom global
+// (the Web Notifications API) and shadowing it module-locally reads as a bug.
+export interface AppNotification {
+  id: string;
+  userId: string;
+  channel: NotificationChannel;
+  status: NotificationStatus;
+  eventType: NotificationEventType | null;
+  title: string;
+  body: string;
+  data: Record<string, unknown> | null;
+  sentAt: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
 export type BookingStatus = "PENDING" | "CONFIRMED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
 
 export interface Booking {

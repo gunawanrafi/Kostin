@@ -72,6 +72,22 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         .send(fail({ code: NotificationErrorCode.NOT_FOUND, message: "Notification not found" }));
       return;
     }
+    // Fastify's own framework errors (unsupported/missing Content-Type,
+    // malformed JSON, payload too large, …) already carry an accurate 4xx
+    // statusCode and an FST_ERR_* code. Forward those instead of flattening
+    // them into a 500 — masking them here is what made a bodyless PATCH with
+    // axios's default `application/x-www-form-urlencoded` header look like an
+    // unexplained "Internal server error" rather than the 415 it really was.
+    // 5xx still logs and returns the opaque message, so genuine server faults
+    // leak nothing.
+    const statusCode = typeof error.statusCode === "number" ? error.statusCode : 500;
+    if (statusCode >= 400 && statusCode < 500) {
+      void reply
+        .status(statusCode)
+        .send(fail({ code: error.code ?? NotificationErrorCode.VALIDATION_ERROR, message: error.message }));
+      return;
+    }
+
     app.log.error(error);
     void reply
       .status(500)

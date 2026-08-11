@@ -79,9 +79,18 @@ export default function LoginPage(): JSX.Element {
           />
           Ingat saya
         </label>
-        <Link href="#" className="text-[12.5px] font-semibold text-accent">
+        {/* TODO(A5/A7 — Tier 2): link to /forgot-password once the reset flow
+            exists. It needs two auth-service endpoints that are NOT built yet:
+            POST /auth/password/forgot and POST /auth/password/reset (the
+            service currently exposes no password-reset route at all — see
+            GAP_ANALYSIS.md §5). Rendered as inert text rather than href="#"
+            so it doesn't look clickable and then do nothing. */}
+        <span
+          title="Belum tersedia — fitur reset kata sandi sedang disiapkan"
+          className="cursor-not-allowed text-[12.5px] font-semibold text-textLight"
+        >
           Lupa kata sandi?
-        </Link>
+        </span>
       </div>
 
       <WButton type="submit" fullWidth loading={login.isPending}>
@@ -94,17 +103,28 @@ export default function LoginPage(): JSX.Element {
         <div className="h-px flex-1 bg-border" />
       </div>
 
-      <WButton
-        type="button"
-        variant="outline"
-        fullWidth
-        icon={<GoogleIcon />}
-        onClick={() => {
-          // TODO: wire to auth-service POST /auth/login/google once the API client exists.
-        }}
+      {/* Google sign-in is BLOCKED ON CONFIG, not on code. The full path
+          exists: the browser mints a Google ID token via Google Identity
+          Services, POSTs it to /api/auth/login/google (built), which forwards
+          to auth-service POST /auth/login/google (built) and sets the same
+          httpOnly cookies as email/password login.
+          What's missing is the credential:
+            1. GOOGLE_CLIENT_ID — empty in .env, so auth-service's
+               GoogleOAuthVerifier has audience "" and rejects every token.
+            2. NEXT_PUBLIC_GOOGLE_CLIENT_ID — does not exist, so the browser
+               has nothing to initialise Google Identity Services with and
+               cannot obtain an ID token in the first place.
+          Left visibly disabled rather than wired to a handler that would
+          always 401, and rather than a silent no-op onClick. Enable this and
+          add the GIS call once a client ID is provisioned. */}
+      <span
+        title="Login Google belum dikonfigurasi (GOOGLE_CLIENT_ID belum diisi)"
+        className="inline-flex w-full"
       >
-        Lanjut dengan Google
-      </WButton>
+        <WButton type="button" variant="outline" fullWidth icon={<GoogleIcon />} disabled aria-disabled>
+          Lanjut dengan Google
+        </WButton>
+      </span>
 
       <p className="text-center text-[13px] text-textMid">
         Belum punya akun?{" "}

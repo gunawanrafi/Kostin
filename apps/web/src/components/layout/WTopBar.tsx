@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Bell, LogOut, Settings, User as UserIcon } from "lucide-react";
 import { KostinLogo } from "@/components/brand/KostinLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,7 +17,9 @@ export interface WTopBarProps {
   ownerName?: string;
   avatarUrl?: string;
   notificationCount?: number;
-  onNotificationsClick?: () => void;
+  /** Destination for the bell. A real link (not an onClick) so the
+   *  notifications page supports middle-click, cmd-click, and keyboard nav. */
+  notificationsHref?: string;
   onProfileClick?: () => void;
   onSettingsClick?: () => void;
   onLogout?: () => void;
@@ -28,7 +31,7 @@ export function WTopBar({
   ownerName = "Pemilik",
   avatarUrl,
   notificationCount = 0,
-  onNotificationsClick,
+  notificationsHref = "/notifications",
   onProfileClick,
   onSettingsClick,
   onLogout,
@@ -38,10 +41,11 @@ export function WTopBar({
       <KostinLogo size={18} dark />
 
       <div className="flex items-center gap-5">
-        <button
-          type="button"
-          onClick={onNotificationsClick}
-          aria-label="Notifikasi"
+        <Link
+          href={notificationsHref}
+          aria-label={
+            notificationCount > 0 ? `Notifikasi (${notificationCount} belum dibaca)` : "Notifikasi"
+          }
           className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.08] transition-colors hover:bg-white/[0.14]"
         >
           <Bell className="h-4 w-4 text-white/85" strokeWidth={2} />
@@ -50,7 +54,7 @@ export function WTopBar({
               {notificationCount > 9 ? "9+" : notificationCount}
             </span>
           ) : null}
-        </button>
+        </Link>
 
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2.5 border-l border-white/15 pl-4 outline-none">

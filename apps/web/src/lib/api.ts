@@ -27,6 +27,32 @@ function createClient(baseURL: string, options: { attachToken?: boolean } = {}):
   const { attachToken = true } = options;
   const instance = axios.create({ baseURL, timeout: 10_000 });
 
+  // Bodyless POST/PUT/PATCH must not advertise a Content-Type.
+  //
+  // Axios defaults `Content-Type: application/x-www-form-urlencoded` on any
+  // body-carrying method even when `data` is undefined (e.g.
+  // `api.patch("/notifications/:id/read")`). Our Fastify services register no
+  // parser for that media type — only JSON and text/plain — so Fastify throws
+  // FST_ERR_CTP_UNSUPPORTED_MEDIA_TYPE before the route handler ever runs, and
+  // each service's catch-all error handler flattens that into an opaque
+  // 500 "Internal server error".
+  //
+  // Assigning null (rather than `delete`) is deliberate and load-bearing:
+  // axios merges its per-method default headers AFTER request interceptors
+  // run, so a deleted key simply comes back. An explicit null survives that
+  // merge and suppresses the header, leaving the request genuinely bodyless —
+  // which Fastify accepts. Verified against notification-service: `delete`
+  // still 415s, null returns 200.
+  //
+  // Requests that DO carry data are untouched — axios sets the correct
+  // Content-Type for them as usual.
+  instance.interceptors.request.use((config) => {
+    if (config.data === undefined && config.headers) {
+      config.headers["Content-Type"] = null;
+    }
+    return config;
+  });
+
   if (attachToken) {
     // Runs per-request (Next.js's request-scoped AsyncLocalStorage makes
     // cookies() valid here even though `instance` itself is module-level).
