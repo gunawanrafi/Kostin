@@ -3,7 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, Users, Wallet, type LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  Building2,
+  Users,
+  Wallet,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useCurrentUser } from "@/lib/hooks/useAuth";
@@ -23,14 +30,14 @@ export interface WSidebarNavItem {
 }
 
 // Phase 1 nav only — matches the pages actually built in this dashboard.
-// DESIGN_SYSTEM.md's full owner nav also lists Penyewa Aktif, Pesan, and
-// Pengaturan; add them here once those routes exist (linking to them now
-// would 404).
+// DESIGN_SYSTEM.md's full owner nav also lists Penyewa Aktif and Pesan; add
+// them here once those routes exist (linking to them now would 404).
 export const DEFAULT_NAV_ITEMS: WSidebarNavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Properti Saya", href: "/listings", icon: Building2 },
   { label: "Calon Penyewa", href: "/tenants", icon: Users },
   { label: "Keuangan", href: "/finance", icon: Wallet },
+  { label: "Pengaturan", href: "/settings", icon: Settings },
 ];
 
 export interface WSidebarProps {

@@ -1,7 +1,9 @@
-import type { FastifyInstance, FastifyPluginAsync } from "fastify";
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
+import { AppError, AuthErrorCode } from "../lib/errors.js";
 import { ok } from "../lib/response.js";
 import type { AuthDeps } from "../services/auth.service.js";
 import {
+  changePassword,
   loginUser,
   loginWithGoogle,
   logoutUser,
@@ -18,6 +20,7 @@ import {
   logoutSchema,
   otpRequestSchema,
   otpVerifySchema,
+  passwordChangeSchema,
   passwordForgotSchema,
   passwordResetSchema,
   refreshSchema,
@@ -26,13 +29,21 @@ import {
 
 export interface AuthRoutesOptions {
   deps: AuthDeps;
+  authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+}
+
+function requireUserId(request: FastifyRequest): string {
+  if (!request.user) {
+    throw new AppError(401, AuthErrorCode.UNAUTHORIZED, "Missing or invalid Authorization header");
+  }
+  return request.user.id;
 }
 
 const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
   fastify: FastifyInstance,
   opts,
 ) => {
-  const { deps } = opts;
+  const { deps, authenticate } = opts;
 
   fastify.post("/register", async (request, reply) => {
     const body = registerSchema.parse(request.body);
@@ -75,6 +86,15 @@ const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
   fastify.post("/password/reset", async (request, reply) => {
     const body = passwordResetSchema.parse(request.body);
     const result = await resetPassword(deps, body);
+    return reply.status(200).send(ok(result));
+  });
+
+  // The only authenticated route in this service — it acts on the caller's
+  // own account, identified by the access token rather than by anything in
+  // the body.
+  fastify.post("/password/change", { preHandler: authenticate }, async (request, reply) => {
+    const body = passwordChangeSchema.parse(request.body);
+    const result = await changePassword(deps, requireUserId(request), body);
     return reply.status(200).send(ok(result));
   });
 

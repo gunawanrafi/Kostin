@@ -55,6 +55,15 @@ export const passwordResetSchema = z.object({
 });
 export type PasswordResetInput = z.infer<typeof passwordResetSchema>;
 
+// Signed-in password change. `currentPassword` is only min(1) — it's checked
+// against the stored hash, not re-validated, so an account whose password
+// predates passwordSchema's min(8) can still be changed away from.
+export const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: passwordSchema,
+});
+export type PasswordChangeInput = z.infer<typeof passwordChangeSchema>;
+
 export const logoutSchema = z.object({
   refreshToken: z.string().min(10),
 });

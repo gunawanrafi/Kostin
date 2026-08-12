@@ -12,3 +12,20 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json(body, { status });
   }
 }
+
+// Partial update of the signed-in user's own profile (Pengaturan → Informasi
+// Akun). The body is forwarded as-is; user-service's updateMeSchema is the
+// single source of truth for which fields are accepted — notably `name`, but
+// NOT `email` or `phone`, which are unique sign-in identifiers and would need
+// a verification step this project doesn't have yet.
+export async function PATCH(request: Request): Promise<NextResponse> {
+  const body: unknown = await request.json();
+
+  try {
+    const { data } = await userApi.patch("/users/me", body);
+    return NextResponse.json(data);
+  } catch (err) {
+    const { status, body: errorBody } = toErrorResponse(err);
+    return NextResponse.json(errorBody, { status });
+  }
+}

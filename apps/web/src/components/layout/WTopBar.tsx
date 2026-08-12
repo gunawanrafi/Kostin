@@ -20,8 +20,9 @@ export interface WTopBarProps {
   /** Destination for the bell. A real link (not an onClick) so the
    *  notifications page supports middle-click, cmd-click, and keyboard nav. */
   notificationsHref?: string;
+  /** Destination for the Pengaturan item — a real link, same reasoning. */
+  settingsHref?: string;
   onProfileClick?: () => void;
-  onSettingsClick?: () => void;
   onLogout?: () => void;
 }
 
@@ -32,8 +33,8 @@ export function WTopBar({
   avatarUrl,
   notificationCount = 0,
   notificationsHref = "/notifications",
+  settingsHref = "/settings",
   onProfileClick,
-  onSettingsClick,
   onLogout,
 }: WTopBarProps): React.JSX.Element {
   return (
@@ -68,8 +69,13 @@ export function WTopBar({
             <DropdownMenuItem onSelect={() => onProfileClick?.()}>
               <UserIcon className="h-4 w-4" /> Profil Saya
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onSettingsClick?.()}>
-              <Settings className="h-4 w-4" /> Pengaturan
+            {/* asChild so the item renders as the <Link> itself — one
+                element, so it keeps the menu's keyboard handling while
+                behaving like a real link (middle-click, cmd-click). */}
+            <DropdownMenuItem asChild>
+              <Link href={settingsHref}>
+                <Settings className="h-4 w-4" /> Pengaturan
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => onLogout?.()} className="text-error focus:bg-errorSoft">

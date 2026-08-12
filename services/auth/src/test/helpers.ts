@@ -21,6 +21,8 @@ export function testConfig(overrides: Partial<AuthConfig> = {}): AuthConfig {
     otpTtlSec: 300,
     otpMaxAttempts: 5,
     otpRequestCooldownSec: 60,
+    passwordChangeMaxAttempts: 5,
+    passwordChangeWindowSec: 15 * 60,
     googleClientId: "test-google-client-id",
     twilioAccountSid: "",
     twilioAuthToken: "",

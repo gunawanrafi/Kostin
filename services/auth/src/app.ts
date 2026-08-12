@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { prisma } from "@kostin/database";
 import type { ApiResponse } from "@kostin/types";
 import { loadConfig, type AuthConfig } from "./config.js";
+import { createAuthenticate } from "./lib/auth-plugin.js";
 import { AppError, AuthErrorCode } from "./lib/errors.js";
 import { fail } from "./lib/response.js";
 import { GoogleOAuthVerifier, type GoogleVerifier } from "./lib/google.js";
@@ -59,7 +60,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     meta: { requestId: crypto.randomUUID() },
   }));
 
-  void app.register(authRoutes, { prefix: "/auth", deps });
+  void app.register(authRoutes, {
+    prefix: "/auth",
+    deps,
+    authenticate: createAuthenticate(config.jwtAccessSecret),
+  });
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof AppError) {

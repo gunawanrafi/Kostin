@@ -6,6 +6,11 @@ import type { GoogleVerifier } from "../lib/google.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken, TokenError } from "../lib/jwt.js";
 import type { OtpSender } from "../lib/otp.js";
 import { requestOtp, verifyOtp } from "../lib/otp-store.js";
+import {
+  assertPasswordChangeAllowed,
+  clearPasswordChangeAttempts,
+  recordFailedPasswordChange,
+} from "../lib/password-change-store.js";
 import { consumeResetCode, issueResetCode } from "../lib/password-reset-store.js";
 import { normalizePhone } from "../lib/phone.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
@@ -18,6 +23,7 @@ import type {
   LogoutInput,
   OtpRequestInput,
   OtpVerifyInput,
+  PasswordChangeInput,
   PasswordForgotInput,
   PasswordResetInput,
   RefreshInput,
@@ -244,5 +250,68 @@ export async function resetPassword(
   // RedisLike exposes no scan/keys, so there is no way to enumerate a user's
   // sessions without widening that interface. Worth doing as a follow-up:
   // after a reset the old sessions arguably should be killed.
+  return { success: true };
+}
+
+// Signed-in password change (Pengaturan → Keamanan). Distinct from the reset
+// flow above: the credential proving it's really you is the *current
+// password*, not a code delivered out-of-band, so no OTP is sent and the
+// user's phone is never involved.
+//
+// `userId` comes from the verified access token (see lib/auth-plugin.ts), not
+// from the request body — a caller can therefore only ever change their own
+// password, whatever they put in the payload.
+export async function changePassword(
+  deps: AuthDeps,
+  userId: string,
+  input: PasswordChangeInput,
+): Promise<{ success: true }> {
+  const user = await deps.userRepository.findById(userId);
+  if (!user) {
+    // Valid signature, deleted account — same shape refreshTokens uses.
+    throw new AppError(401, AuthErrorCode.TOKEN_INVALID, "User no longer exists");
+  }
+
+  if (!user.passwordHash) {
+    // Google-only account: there is no current password to confirm, so this
+    // operation has no honest meaning. Setting a first password is what the
+    // reset flow does (it accepts a null hash), and it verifies ownership via
+    // the WhatsApp code — so point there rather than letting a bare session
+    // mint a password out of nothing.
+    throw new AppError(
+      409,
+      AuthErrorCode.PASSWORD_NOT_SET,
+      "This account signs in with Google and has no password yet. Use the password reset flow to set one.",
+    );
+  }
+
+  // Checked before bcrypt runs, so a locked-out caller costs nothing.
+  await assertPasswordChangeAllowed(deps.redis, userId, deps.config);
+
+  const valid = await verifyPassword(input.currentPassword, user.passwordHash);
+  if (!valid) {
+    await recordFailedPasswordChange(deps.redis, userId, deps.config);
+    throw new AppError(401, AuthErrorCode.INVALID_CREDENTIALS, "Current password is incorrect");
+  }
+
+  // Compared against the hash rather than the two plaintexts, so it also
+  // catches "new password equals current" when they differ only by what the
+  // client sent (and works regardless of how the current one was set).
+  if (await verifyPassword(input.newPassword, user.passwordHash)) {
+    throw new AppError(
+      400,
+      AuthErrorCode.PASSWORD_UNCHANGED,
+      "New password must be different from the current one",
+    );
+  }
+
+  const passwordHash = await hashPassword(input.newPassword);
+  await deps.userRepository.updatePassword(user.id, passwordHash);
+  await clearPasswordChangeAttempts(deps.redis, userId);
+
+  // Same caveat as resetPassword: other sessions survive this change, because
+  // RedisLike can't enumerate a user's refresh jtis. The caller's own session
+  // is deliberately left intact either way — they stay signed in on this
+  // device after changing their password.
   return { success: true };
 }

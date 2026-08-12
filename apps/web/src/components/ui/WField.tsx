@@ -21,7 +21,11 @@ export type WTextareaFieldProps = WFieldBaseProps &
 export const WField = React.forwardRef<HTMLInputElement | HTMLTextAreaElement, WFieldProps | WTextareaFieldProps>(
   ({ label, prefix, note, error, containerClassName, className, textarea, ...props }, ref) => {
     const fieldClasses = cn(
-      "flex w-full items-center gap-2 rounded-md border bg-bg px-3.5 py-[11px] text-sm text-text placeholder:text-textLight transition-colors focus:outline-none focus:ring-1 focus:ring-accent",
+      // The disabled styling is load-bearing, not decoration: settings shows
+      // real values (phone, email) in fields that genuinely cannot be edited
+      // yet, and they have to read as such at a glance rather than looking
+      // like inputs that silently refuse to save.
+      "flex w-full items-center gap-2 rounded-md border bg-bg px-3.5 py-[11px] text-sm text-text placeholder:text-textLight transition-colors focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:bg-bgAlt disabled:text-textMid",
       error ? "border-error focus:ring-error" : "border-border focus:border-accent",
       textarea && "min-h-[84px] items-start py-3",
       className,

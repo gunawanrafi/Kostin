@@ -16,6 +16,12 @@ export interface AuthConfig {
   otpMaxAttempts: number;
   otpRequestCooldownSec: number;
 
+  // Wrong current-password attempts allowed on POST /auth/password/change,
+  // per user, per window. Kept separate from the OTP counters: those guard a
+  // 6-digit code, this guards a real password.
+  passwordChangeMaxAttempts: number;
+  passwordChangeWindowSec: number;
+
   googleClientId: string;
 
   twilioAccountSid: string;
@@ -28,6 +34,8 @@ const DEFAULT_REFRESH_TTL_SEC = 7 * 24 * 60 * 60;
 const DEFAULT_OTP_TTL_SEC = 5 * 60;
 const DEFAULT_OTP_MAX_ATTEMPTS = 5;
 const DEFAULT_OTP_COOLDOWN_SEC = 60;
+const DEFAULT_PASSWORD_CHANGE_MAX_ATTEMPTS = 5;
+const DEFAULT_PASSWORD_CHANGE_WINDOW_SEC = 15 * 60;
 
 function int(value: string | undefined, fallback: number): number {
   const n = value ? parseInt(value, 10) : NaN;
@@ -54,6 +62,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig {
     otpTtlSec: int(env["OTP_TTL_SEC"], DEFAULT_OTP_TTL_SEC),
     otpMaxAttempts: int(env["OTP_MAX_ATTEMPTS"], DEFAULT_OTP_MAX_ATTEMPTS),
     otpRequestCooldownSec: int(env["OTP_REQUEST_COOLDOWN_SEC"], DEFAULT_OTP_COOLDOWN_SEC),
+
+    passwordChangeMaxAttempts: int(
+      env["PASSWORD_CHANGE_MAX_ATTEMPTS"],
+      DEFAULT_PASSWORD_CHANGE_MAX_ATTEMPTS,
+    ),
+    passwordChangeWindowSec: int(
+      env["PASSWORD_CHANGE_WINDOW_SEC"],
+      DEFAULT_PASSWORD_CHANGE_WINDOW_SEC,
+    ),
 
     googleClientId: env["GOOGLE_CLIENT_ID"] ?? "",
 
