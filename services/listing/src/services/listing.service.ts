@@ -1,19 +1,41 @@
 import type { ListingConfig } from "../config.js";
-import { toPublicListing, type PublicListing } from "../lib/dto.js";
+import { DEFAULT_HOUSE_RULES, toPublicListing, type PublicListing } from "../lib/dto.js";
 import { AppError, ListingErrorCode } from "../lib/errors.js";
 import type {
   GeoFilter,
   ListingFilters,
+  ListingPricingData,
   ListingRepository,
 } from "../lib/listing-repository.js";
 import type { PhotoUploader } from "../lib/photo-uploader.js";
 import {
   TIPE_TO_KOST_TYPE,
+  type AdditionalFeesInput,
   type CreateListingInput,
+  type DepositInput,
   type ListQueryInput,
   type SearchQueryInput,
   type UpdateListingInput,
 } from "../lib/validation.js";
+
+// A disabled deposit stores NULL, so "enabled" and "amount" can never end up
+// contradicting each other on disk. depositSchema has already rejected
+// enabled-without-amount, so the `?? null` is only reached when disabled.
+function toDepositAmount(deposit: DepositInput | undefined): number | null {
+  if (!deposit?.enabled) return null;
+  return deposit.amount ?? null;
+}
+
+// An omitted fee is NULL ("not charged"), which is why this maps undefined to
+// null rather than leaving it out — sending `additionalFees` at all means the
+// owner reviewed all three.
+function toFeeColumns(fees: AdditionalFeesInput | undefined) {
+  return {
+    feeExtraOccupant: fees?.extraOccupant ?? null,
+    feeMotorcycleParking: fees?.motorcycleParking ?? null,
+    feeCarParking: fees?.carParking ?? null,
+  };
+}
 
 export interface ListingDeps {
   config: ListingConfig;
@@ -100,6 +122,13 @@ export async function createListing(
     facilities: input.facilities,
     amenities: input.amenities,
     rules: input.rules,
+    pricing: {
+      depositAmount: toDepositAmount(input.deposit),
+      paymentDuration: input.paymentDuration,
+      // Omitted entirely => no rules declared, which is what all-false means.
+      houseRules: input.houseRules ?? DEFAULT_HOUSE_RULES,
+      ...toFeeColumns(input.additionalFees),
+    },
   });
   return toPublicListing(listing);
 }
@@ -124,6 +153,17 @@ export async function updateListing(
 ): Promise<PublicListing> {
   await loadOwnedListing(deps, userId, id);
 
+  // Only the keys the caller actually sent are patched — omitting `deposit`
+  // leaves the stored deposit alone, whereas sending `{ enabled: false }`
+  // deliberately clears it.
+  const pricingPatch: Partial<ListingPricingData> = {
+    ...(input.deposit !== undefined ? { depositAmount: toDepositAmount(input.deposit) } : {}),
+    ...(input.paymentDuration !== undefined ? { paymentDuration: input.paymentDuration } : {}),
+    ...(input.houseRules !== undefined ? { houseRules: input.houseRules } : {}),
+    ...(input.additionalFees !== undefined ? toFeeColumns(input.additionalFees) : {}),
+  };
+  const hasPricingPatch = Object.keys(pricingPatch).length > 0 ? pricingPatch : null;
+
   const updated = await deps.listingRepository.update(id, {
     ...(input.title !== undefined ? { title: input.title } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
@@ -139,6 +179,7 @@ export async function updateListing(
     ...(input.amenities !== undefined ? { amenities: input.amenities } : {}),
     ...(input.rules !== undefined ? { rules: input.rules } : {}),
     ...(input.status !== undefined ? { status: input.status } : {}),
+    ...(hasPricingPatch !== null ? { pricing: hasPricingPatch } : {}),
   });
   return toPublicListing(updated);
 }

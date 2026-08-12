@@ -9,27 +9,11 @@ import { WizardSteps } from "./_components/WizardSteps";
 import { StepInfoDasar } from "./_components/StepInfoDasar";
 import { StepFasilitas } from "./_components/StepFasilitas";
 import { StepFotoMedia } from "./_components/StepFotoMedia";
+import { StepHargaAturan } from "./_components/StepHargaAturan";
 import { StepPreviewPublish } from "./_components/StepPreviewPublish";
-import { DEFAULT_COORDS, INITIAL_FORM_STATE, STEP_LABELS, type KostFormState } from "./_components/types";
+import { mapFormToCreateListingInput } from "./_components/mapForm";
+import { INITIAL_FORM_STATE, STEP_LABELS, type KostFormState } from "./_components/types";
 import { useCreateListing, useUploadListingPhotos } from "@/lib/hooks/useListings";
-import type { ListingTipe } from "@/lib/types";
-
-const TYPE_LABEL_TO_TIPE: Record<string, ListingTipe> = {
-  "Khusus Putri": "PUTRI",
-  "Khusus Putra": "PUTRA",
-  Campur: "CAMPUR",
-};
-
-// Fallback only when the owner clears/garbles the manual coordinate inputs —
-// the wizard now collects lat/lng directly (see StepInfoDasar), so the saved
-// coordinate reflects owner intent rather than a silent hardcoded value.
-const FALLBACK_LAT = Number(DEFAULT_COORDS.lat);
-const FALLBACK_LNG = Number(DEFAULT_COORDS.lng);
-
-function parseCoord(value: string, fallback: number): number {
-  const n = Number.parseFloat(value);
-  return Number.isFinite(n) ? n : fallback;
-}
 
 // Ordered list of the actual File objects the owner selected, main photo
 // first. Empty when nothing was uploaded in the Foto & Media step.
@@ -38,24 +22,6 @@ function collectPhotoFiles(form: KostFormState): File[] {
   if (form.mainPhoto) files.push(form.mainPhoto.file);
   for (const photo of form.roomPhotos) files.push(photo.file);
   return files;
-}
-
-function mapFormToCreateListingInput(form: KostFormState) {
-  return {
-    title: form.name,
-    description: form.description,
-    address: form.address,
-    // The wizard only collects one "district" field (labeled Kecamatan) —
-    // reused for kelurahan too since there's no separate input for it.
-    kelurahan: form.district,
-    kecamatan: form.district,
-    city: form.city,
-    lat: parseCoord(form.lat, FALLBACK_LAT),
-    lng: parseCoord(form.lng, FALLBACK_LNG),
-    type: TYPE_LABEL_TO_TIPE[form.type] ?? "CAMPUR",
-    pricePerMonth: Number(form.price) || 0,
-    amenities: [...form.roomFacilities, ...form.sharedFacilities],
-  };
 }
 
 function toMessage(err: unknown, fallback: string): string {
@@ -70,9 +36,12 @@ function toMessage(err: unknown, fallback: string): string {
 const NEXT_LABELS = [
   "Lanjutkan ke Fasilitas & Kamar →",
   "Lanjutkan ke Foto & Media →",
+  "Lanjutkan ke Harga & Aturan →",
   "Lanjutkan ke Preview & Publish →",
   "Simpan & Publish Listing 🚀",
 ];
+
+const HARGA_ATURAN_STEP = 3;
 
 export default function TambahKostPage(): JSX.Element {
   const router = useRouter();
@@ -119,8 +88,18 @@ export default function TambahKostPage(): JSX.Element {
     }
   };
 
+  // The one client-side gate: an enabled deposit with no nominal is rejected
+  // by listing-service (depositSchema), so catching it here keeps the owner on
+  // the step that owns the field instead of bouncing them back from publish.
+  const depositIncomplete = form.depositEnabled && !form.deposit;
+
   const handleNext = async (): Promise<void> => {
+    if (step === HARGA_ATURAN_STEP && depositIncomplete) {
+      setError("Isi nominal deposit, atau matikan opsi deposit.");
+      return;
+    }
     if (step < STEP_LABELS.length - 1) {
+      setError(undefined);
       setStep((s) => s + 1);
       return;
     }
@@ -160,7 +139,8 @@ export default function TambahKostPage(): JSX.Element {
       {step === 0 ? <StepInfoDasar form={form} onChange={handleChange} /> : null}
       {step === 1 ? <StepFasilitas form={form} onChange={handleChange} /> : null}
       {step === 2 ? <StepFotoMedia form={form} onChange={handleChange} /> : null}
-      {step === 3 ? <StepPreviewPublish form={form} onChange={handleChange} /> : null}
+      {step === 3 ? <StepHargaAturan form={form} onChange={handleChange} /> : null}
+      {step === 4 ? <StepPreviewPublish form={form} /> : null}
 
       {error ? (
         <div className="rounded-lg border border-error bg-errorSoft px-4 py-3 text-[13px] text-error">{error}</div>

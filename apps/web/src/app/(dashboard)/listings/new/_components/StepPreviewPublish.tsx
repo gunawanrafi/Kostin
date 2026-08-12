@@ -1,15 +1,15 @@
 import Image from "next/image";
-import { Bookmark, Eye, MapPin } from "lucide-react";
-import { WField } from "@/components/ui/WField";
+import { Bookmark, Check, Eye, MapPin, X } from "lucide-react";
 import { WSectionCard } from "@/components/ui/WSectionCard";
 import { WCard } from "@/components/ui/WCard";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import type { KostFormState } from "./types";
+import { cn } from "@/lib/utils";
+import { HOUSE_RULE_OPTIONS, PAYMENT_DURATION_OPTIONS, type KostFormState } from "./types";
+import { parseAdditionalRules } from "./mapForm";
 
 export interface StepPreviewPublishProps {
   form: KostFormState;
-  onChange: (patch: Partial<KostFormState>) => void;
 }
 
 function computeCompleteness(form: KostFormState): number {
@@ -27,39 +27,94 @@ function computeCompleteness(form: KostFormState): number {
   return Math.round((complete / checks.length) * 100);
 }
 
-export function StepPreviewPublish({ form, onChange }: StepPreviewPublishProps): JSX.Element {
+function rupiah(digits: string): string {
+  return `Rp ${digits ? Number(digits).toLocaleString("id-ID") : "0"}`;
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b border-borderLight py-2 last:border-b-0">
+      <span className="text-[12.5px] text-textMid">{label}</span>
+      <span className="text-right text-[12.5px] font-semibold text-text">{value}</span>
+    </div>
+  );
+}
+
+// Read-only summary of everything step 4 collected. This step used to *be*
+// the pricing form; it now shows what will actually be sent, so an owner can
+// verify the rules and fees survived before publishing.
+export function StepPreviewPublish({ form }: StepPreviewPublishProps): JSX.Element {
   const percent = computeCompleteness(form);
+  const durationLabel =
+    PAYMENT_DURATION_OPTIONS.find((o) => o.value === form.paymentDuration)?.label ?? "Bulanan";
+  const extraRules = parseAdditionalRules(form.additionalRules);
+
+  const fees: { label: string; value: string }[] = [
+    { label: "Penghuni Tambahan", value: form.feeExtraOccupant },
+    { label: "Parkir Motor", value: form.feeMotorcycleParking },
+    { label: "Parkir Mobil", value: form.feeCarParking },
+  ]
+    .filter((f) => f.value !== "")
+    .map((f) => ({ label: f.label, value: `${rupiah(f.value)} / bln` }));
 
   return (
     <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[1.6fr_1fr]">
       <div className="flex flex-col gap-5">
-        <WSectionCard title="💳 Harga Sewa & Deposit">
-          <div className="flex gap-4">
-            <WField
-              label="Harga Sewa"
-              prefix="Rp"
-              placeholder="1.500.000"
-              value={form.price}
-              onChange={(e) => onChange({ price: e.target.value.replace(/[^\d]/g, "") })}
+        <WSectionCard title="💳 Harga & Pembayaran">
+          <div className="flex flex-col">
+            <SummaryRow label="Harga Sewa" value={`${rupiah(form.price)} / bulan`} />
+            <SummaryRow label="Durasi Pembayaran" value={durationLabel} />
+            <SummaryRow
+              label="Deposit"
+              value={form.depositEnabled ? rupiah(form.deposit) : "Tidak dikenakan"}
             />
           </div>
-          {/* Deposit has no column on the Listing model (or anywhere in the
-              Prisma schema) yet, so the toggle/nominal are disabled instead of
-              collecting a value that would silently go nowhere. */}
-          <label className="flex items-center justify-between gap-4 rounded-lg bg-bg px-3.5 py-3 opacity-60">
-            <div>
-              <div className="text-[13.5px] font-semibold text-text">Uang Muka / Deposit Keamanan</div>
-              <div className="mt-0.5 text-[11.5px] text-warningTextDeep">Belum tersedia — fitur deposit akan hadir di fase berikutnya.</div>
+        </WSectionCard>
+
+        <WSectionCard title="🚪 Aturan Kost">
+          <div className="flex flex-col gap-2">
+            {HOUSE_RULE_OPTIONS.map(({ key, label }) => {
+              const on = form.houseRules[key];
+              return (
+                <div key={key} className="flex items-center gap-2 text-[12.5px]">
+                  <span
+                    className={cn(
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full",
+                      on ? "bg-successSoft text-success" : "bg-bg text-textLight",
+                    )}
+                  >
+                    {on ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : <X className="h-2.5 w-2.5" />}
+                  </span>
+                  <span className={on ? "text-text" : "text-textLight"}>{label}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {extraRules.length > 0 ? (
+            <div className="mt-1">
+              <div className="mb-1.5 font-heading text-[12.5px] font-bold text-textSec">
+                Aturan Tambahan
+              </div>
+              <ul className="flex list-disc flex-col gap-1 pl-4 text-[12.5px] text-textMid">
+                {extraRules.map((rule) => (
+                  <li key={rule}>{rule}</li>
+                ))}
+              </ul>
             </div>
-            <button
-              type="button"
-              disabled
-              aria-pressed={false}
-              className="flex h-[22px] w-10 shrink-0 cursor-not-allowed items-center justify-start rounded-full bg-border p-0.5"
-            >
-              <span className="h-[18px] w-[18px] rounded-full bg-white shadow" />
-            </button>
-          </label>
+          ) : null}
+        </WSectionCard>
+
+        <WSectionCard title="➕ Biaya Tambahan">
+          {fees.length > 0 ? (
+            <div className="flex flex-col">
+              {fees.map((fee) => (
+                <SummaryRow key={fee.label} label={fee.label} value={fee.value} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-[12.5px] text-textMid">Tidak ada biaya tambahan.</p>
+          )}
         </WSectionCard>
       </div>
 
@@ -86,9 +141,6 @@ export function StepPreviewPublish({ form, onChange }: StepPreviewPublishProps):
                   </span>
                 </div>
               )}
-              <Badge variant="success" className="absolute left-2 top-2 rounded">
-                VERIFIED
-              </Badge>
             </div>
             <div className="p-3.5">
               <div className="font-heading text-[15px] font-bold text-text">
@@ -109,7 +161,7 @@ export function StepPreviewPublish({ form, onChange }: StepPreviewPublishProps):
                 <div>
                   <div className="text-[10px] text-textLight">Mulai dari</div>
                   <div className="font-heading text-sm font-bold text-text">
-                    Rp {form.price ? Number(form.price).toLocaleString("id-ID") : "0"} / bulan
+                    {rupiah(form.price)} / bulan
                   </div>
                 </div>
                 <div className="flex h-[26px] w-[26px] items-center justify-center rounded-full border-[1.5px] border-accentBorder text-accent">
@@ -118,6 +170,14 @@ export function StepPreviewPublish({ form, onChange }: StepPreviewPublishProps):
               </div>
             </div>
           </div>
+
+          {/* The old preview stamped a green "VERIFIED" badge on every listing.
+              Nothing verifies a listing — new ones are created as DRAFT and no
+              review flow exists — so showing that to the owner was telling
+              them something untrue about their own listing. */}
+          <p className="mt-3 text-[11px] leading-[1.5] text-textLight">
+            Listing disimpan sebagai draf. Publikasi ke pencarian menyusul setelah tinjauan.
+          </p>
         </WCard>
       </div>
     </div>

@@ -1,6 +1,13 @@
-import type { KostType, Listing, ListingStatus, PrismaClient } from "@kostin/database";
+import type {
+  KostType,
+  Listing,
+  ListingStatus,
+  PaymentDuration,
+  PrismaClient,
+} from "@kostin/database";
 import { Prisma } from "@kostin/database";
 import { decodeCursor, encodeCursor } from "./cursor.js";
+import type { HouseRules } from "./dto.js";
 
 export interface ListingFilters {
   minPrice?: number;
@@ -22,6 +29,18 @@ export interface ListPage<T> {
   nextCursor: string | null;
 }
 
+// Column-level shape, not the API shape: the service has already collapsed
+// `deposit: { enabled, amount }` into a single nullable amount, and the
+// per-fee nulls are explicit.
+export interface ListingPricingData {
+  depositAmount: number | null;
+  paymentDuration: PaymentDuration;
+  houseRules: HouseRules;
+  feeExtraOccupant: number | null;
+  feeMotorcycleParking: number | null;
+  feeCarParking: number | null;
+}
+
 export interface CreateListingData {
   ownerId: string;
   title: string;
@@ -37,6 +56,7 @@ export interface CreateListingData {
   facilities: Record<string, unknown>;
   amenities: string[];
   rules: string[];
+  pricing: ListingPricingData;
 }
 
 export interface UpdateListingData {
@@ -54,6 +74,7 @@ export interface UpdateListingData {
   amenities?: string[];
   rules?: string[];
   status?: ListingStatus;
+  pricing?: Partial<ListingPricingData>;
 }
 
 export type ListingWithDistance = Listing & { distanceKm?: number };
@@ -241,9 +262,18 @@ export function createPrismaListingRepository(prisma: PrismaClient): ListingRepo
       return { items, nextCursor };
     },
 
-    create: (input) =>
+    create: ({ pricing, ...input }) =>
       prisma.listing.create({
-        data: { ...input, facilities: input.facilities as Prisma.InputJsonValue },
+        data: {
+          ...input,
+          facilities: input.facilities as Prisma.InputJsonValue,
+          depositAmount: pricing.depositAmount,
+          paymentDuration: pricing.paymentDuration,
+          houseRules: pricing.houseRules as unknown as Prisma.InputJsonValue,
+          feeExtraOccupant: pricing.feeExtraOccupant,
+          feeMotorcycleParking: pricing.feeMotorcycleParking,
+          feeCarParking: pricing.feeCarParking,
+        },
       }),
 
     update: (id, input) => {
@@ -264,6 +294,27 @@ export function createPrismaListingRepository(prisma: PrismaClient): ListingRepo
         ...(input.amenities !== undefined ? { amenities: { set: input.amenities } } : {}),
         ...(input.rules !== undefined ? { rules: { set: input.rules } } : {}),
         ...(input.status !== undefined ? { status: input.status } : {}),
+        // `depositAmount: null` is a meaningful write (turning the deposit
+        // off), so these check for `undefined` specifically rather than
+        // truthiness — a null must reach Prisma, an absent key must not.
+        ...(input.pricing?.depositAmount !== undefined
+          ? { depositAmount: input.pricing.depositAmount }
+          : {}),
+        ...(input.pricing?.paymentDuration !== undefined
+          ? { paymentDuration: input.pricing.paymentDuration }
+          : {}),
+        ...(input.pricing?.houseRules !== undefined
+          ? { houseRules: input.pricing.houseRules as unknown as Prisma.InputJsonValue }
+          : {}),
+        ...(input.pricing?.feeExtraOccupant !== undefined
+          ? { feeExtraOccupant: input.pricing.feeExtraOccupant }
+          : {}),
+        ...(input.pricing?.feeMotorcycleParking !== undefined
+          ? { feeMotorcycleParking: input.pricing.feeMotorcycleParking }
+          : {}),
+        ...(input.pricing?.feeCarParking !== undefined
+          ? { feeCarParking: input.pricing.feeCarParking }
+          : {}),
       };
       return prisma.listing.update({ where: { id }, data });
     },

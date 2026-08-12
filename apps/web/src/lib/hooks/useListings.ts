@@ -3,7 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiResponse } from "@kostin/types";
 import { browserApi } from "@/lib/browser-api";
-import type { Listing, ListingStatus, ListingTipe } from "@/lib/types";
+import type {
+  HouseRules,
+  Listing,
+  ListingStatus,
+  ListingTipe,
+  PaymentDuration,
+} from "@/lib/types";
 
 export interface ListingsQueryParams {
   mine?: boolean;
@@ -59,7 +65,20 @@ export interface CreateListingInput {
   pricePerMonth: number;
   facilities?: Record<string, unknown>;
   amenities?: string[];
+  /** Free-form additional rules, one per entry ("Aturan Tambahan"). */
   rules?: string[];
+
+  // Harga & Aturan (C5). `amount` must be present whenever `enabled` is true —
+  // listing-service rejects the pair otherwise.
+  deposit?: { enabled: boolean; amount?: number };
+  paymentDuration?: PaymentDuration;
+  houseRules?: HouseRules;
+  /** An omitted fee is stored as "not charged", distinct from an explicit 0. */
+  additionalFees?: {
+    extraOccupant?: number;
+    motorcycleParking?: number;
+    carParking?: number;
+  };
 }
 
 export function useCreateListing() {

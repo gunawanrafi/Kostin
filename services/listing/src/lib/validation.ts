@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { KostType, ListingStatus } from "@kostin/database";
+import type { KostType, ListingStatus, PaymentDuration } from "@kostin/database";
 
 // The API speaks the short "tipe" vocabulary from the task spec
 // (PUTRA/PUTRI/CAMPUR); Postgres/Prisma store the full KostType enum.
@@ -28,6 +28,64 @@ const csvSchema = z
   .string()
   .transform((v) => v.split(",").map((s) => s.trim()).filter((s) => s.length > 0));
 
+// ── Harga & Aturan (C5) ────────────────────────────────────────────────────
+
+export const PAYMENT_DURATION_VALUES = [
+  "MONTHLY",
+  "QUARTERLY",
+  "SEMIANNUAL",
+  "ANNUAL",
+] as const satisfies readonly PaymentDuration[];
+
+const paymentDurationSchema = z.enum(PAYMENT_DURATION_VALUES);
+
+// Rupiah amounts: whole currency units, no sub-rupiah precision in practice.
+// Capped so a mistyped figure is rejected rather than stored — the column is
+// DECIMAL(12,2), which overflows above 10^10.
+const rupiahSchema = z.number().nonnegative().max(9_999_999_999);
+
+// The deposit toggle and its amount arrive together, and "enabled with no
+// amount" is rejected here rather than silently persisted as a null deposit
+// that the owner believes they configured.
+export const depositSchema = z
+  .object({
+    enabled: z.boolean(),
+    amount: rupiahSchema.positive().optional(),
+  })
+  .refine((d) => !d.enabled || d.amount !== undefined, {
+    message: "amount is required when the deposit is enabled",
+    path: ["amount"],
+  });
+export type DepositInput = z.infer<typeof depositSchema>;
+
+// The five fixed toggles from the C5 artboard. Every field is required so a
+// half-sent object can't leave some rules at an unintended default; the whole
+// object is optional on create (see createListingSchema).
+//
+// Named for what they assert, matching the design's copy:
+//   access24Hours            — "Akses 24 Jam"
+//   overnightGuestsAllowed   — "Boleh Bawa Tamu Menginap"
+//   oppositeGenderProhibited — "Lawan Jenis Dilarang Masuk Kamar"
+//   petsProhibited           — "Dilarang Bawa Hewan"
+//   smokingProhibited        — "Dilarang Merokok"
+export const houseRulesSchema = z.object({
+  access24Hours: z.boolean(),
+  overnightGuestsAllowed: z.boolean(),
+  oppositeGenderProhibited: z.boolean(),
+  petsProhibited: z.boolean(),
+  smokingProhibited: z.boolean(),
+});
+export type HouseRulesInput = z.infer<typeof houseRulesSchema>;
+
+// Optional monthly surcharges. An omitted field means "not charged" and is
+// stored as NULL — distinct from an explicit 0.
+export const additionalFeesSchema = z.object({
+  extraOccupant: rupiahSchema.optional(),
+  motorcycleParking: rupiahSchema.optional(),
+  carParking: rupiahSchema.optional(),
+});
+export type AdditionalFeesInput = z.infer<typeof additionalFeesSchema>;
+
 export const createListingSchema = z.object({
   title: z.string().trim().min(5).max(150),
   description: z.string().trim().min(20).max(5000),
@@ -41,7 +99,13 @@ export const createListingSchema = z.object({
   pricePerMonth: z.number().positive(),
   facilities: z.record(z.string(), z.unknown()).optional().default({}),
   amenities: z.array(z.string().trim().min(1)).optional().default([]),
-  rules: z.array(z.string().trim().min(1)).optional().default([]),
+  // Free-form additional rules ("Aturan Tambahan"), one per entry.
+  rules: z.array(z.string().trim().min(1)).max(30).optional().default([]),
+
+  deposit: depositSchema.optional(),
+  paymentDuration: paymentDurationSchema.optional().default("MONTHLY"),
+  houseRules: houseRulesSchema.optional(),
+  additionalFees: additionalFeesSchema.optional(),
 });
 export type CreateListingInput = z.infer<typeof createListingSchema>;
 
@@ -58,8 +122,16 @@ export const updateListingSchema = z.object({
   pricePerMonth: z.number().positive().optional(),
   facilities: z.record(z.string(), z.unknown()).optional(),
   amenities: z.array(z.string().trim().min(1)).optional(),
-  rules: z.array(z.string().trim().min(1)).optional(),
+  rules: z.array(z.string().trim().min(1)).max(30).optional(),
   status: statusInputSchema.optional(),
+
+  deposit: depositSchema.optional(),
+  paymentDuration: paymentDurationSchema.optional(),
+  // PUT-like semantics per object: sending `houseRules` replaces all five
+  // toggles, sending `additionalFees` replaces all three fees. Omitting the
+  // key leaves the stored value untouched.
+  houseRules: houseRulesSchema.optional(),
+  additionalFees: additionalFeesSchema.optional(),
 });
 export type UpdateListingInput = z.infer<typeof updateListingSchema>;
 

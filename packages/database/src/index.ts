@@ -26,6 +26,7 @@ export {
   UserStatus,
   ListingStatus,
   KostType,
+  PaymentDuration,
   RoomType,
   RoomStatus,
   BookingStatus,

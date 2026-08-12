@@ -30,6 +30,29 @@ export interface AuthResult {
 
 export type ListingTipe = "PUTRA" | "PUTRI" | "CAMPUR";
 export type ListingStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "PENDING_REVIEW";
+export type PaymentDuration = "MONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
+
+export interface ListingDeposit {
+  enabled: boolean;
+  /** Null exactly when `enabled` is false. */
+  amount: number | null;
+}
+
+// The five fixed rule toggles from design C5.
+export interface HouseRules {
+  access24Hours: boolean;
+  overnightGuestsAllowed: boolean;
+  oppositeGenderProhibited: boolean;
+  petsProhibited: boolean;
+  smokingProhibited: boolean;
+}
+
+export interface AdditionalFees {
+  /** Null = not charged; 0 = charged but free. */
+  extraOccupant: number | null;
+  motorcycleParking: number | null;
+  carParking: number | null;
+}
 
 export interface Listing {
   id: string;
@@ -49,6 +72,10 @@ export interface Listing {
   amenities: string[];
   rules: string[];
   status: ListingStatus;
+  deposit: ListingDeposit;
+  paymentDuration: PaymentDuration;
+  houseRules: HouseRules;
+  additionalFees: AdditionalFees;
   createdAt: string;
   updatedAt: string;
   distanceKm?: number;

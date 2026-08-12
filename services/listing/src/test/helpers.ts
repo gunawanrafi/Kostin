@@ -85,6 +85,12 @@ export function makeListing(overrides: Partial<Listing> = {}): Listing {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    depositAmount: null,
+    paymentDuration: "MONTHLY",
+    houseRules: {},
+    feeExtraOccupant: null,
+    feeMotorcycleParking: null,
+    feeCarParking: null,
     ...overrides,
   };
 }
@@ -94,6 +100,7 @@ function cloneListing(l: Listing): Listing {
     ...l,
     facilities: JSON.parse(JSON.stringify(l.facilities)) as Prisma.JsonValue,
     photos: JSON.parse(JSON.stringify(l.photos)) as Prisma.JsonValue,
+    houseRules: JSON.parse(JSON.stringify(l.houseRules)) as Prisma.JsonValue,
     amenities: [...l.amenities],
     rules: [...l.rules],
   };
@@ -253,6 +260,22 @@ export function createFakeListingRepository(
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
+        // Mirrors the Prisma mapping: Decimal columns for money, Json for the
+        // rule flags.
+        depositAmount:
+          input.pricing.depositAmount == null ? null : new Prisma.Decimal(input.pricing.depositAmount),
+        paymentDuration: input.pricing.paymentDuration,
+        houseRules: input.pricing.houseRules as unknown as Prisma.JsonValue,
+        feeExtraOccupant:
+          input.pricing.feeExtraOccupant == null
+            ? null
+            : new Prisma.Decimal(input.pricing.feeExtraOccupant),
+        feeMotorcycleParking:
+          input.pricing.feeMotorcycleParking == null
+            ? null
+            : new Prisma.Decimal(input.pricing.feeMotorcycleParking),
+        feeCarParking:
+          input.pricing.feeCarParking == null ? null : new Prisma.Decimal(input.pricing.feeCarParking),
       };
       listings.push(listing);
       return cloneListing(listing);
@@ -275,6 +298,27 @@ export function createFakeListingRepository(
       if (input.amenities !== undefined) listing.amenities = input.amenities;
       if (input.rules !== undefined) listing.rules = input.rules;
       if (input.status !== undefined) listing.status = input.status;
+      // `undefined` checks, not truthiness — null is a real write here
+      // (clearing a deposit or a fee).
+      const p = input.pricing;
+      if (p?.depositAmount !== undefined) {
+        listing.depositAmount = p.depositAmount == null ? null : new Prisma.Decimal(p.depositAmount);
+      }
+      if (p?.paymentDuration !== undefined) listing.paymentDuration = p.paymentDuration;
+      if (p?.houseRules !== undefined) {
+        listing.houseRules = p.houseRules as unknown as Prisma.JsonValue;
+      }
+      if (p?.feeExtraOccupant !== undefined) {
+        listing.feeExtraOccupant =
+          p.feeExtraOccupant == null ? null : new Prisma.Decimal(p.feeExtraOccupant);
+      }
+      if (p?.feeMotorcycleParking !== undefined) {
+        listing.feeMotorcycleParking =
+          p.feeMotorcycleParking == null ? null : new Prisma.Decimal(p.feeMotorcycleParking);
+      }
+      if (p?.feeCarParking !== undefined) {
+        listing.feeCarParking = p.feeCarParking == null ? null : new Prisma.Decimal(p.feeCarParking);
+      }
       listing.updatedAt = new Date();
       return cloneListing(listing);
     },
