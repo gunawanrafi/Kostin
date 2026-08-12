@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiResponse } from "@kostin/types";
 import { browserApi } from "@/lib/browser-api";
-import type { Booking, BookingStatus } from "@/lib/types";
+import type { Booking, BookingStatus, BookingWithContext } from "@/lib/types";
 
 export interface BookingsQueryParams {
   status?: BookingStatus;
@@ -12,15 +12,20 @@ export interface BookingsQueryParams {
 }
 
 export interface BookingsPage {
-  items: Booking[];
+  items: BookingWithContext[];
   total: number | undefined;
 }
 
+// booking-service embeds the applicant, listing and room on this endpoint
+// (see its findByScope include), so the list view gets real names rather than
+// the foreign keys it used to render as "Penyewa #cmsppkqw".
 export function useBookings(params: BookingsQueryParams = {}) {
   return useQuery({
     queryKey: ["bookings", params],
     queryFn: async (): Promise<BookingsPage> => {
-      const { data } = await browserApi.get<ApiResponse<Booking[]>>("/bookings", { params });
+      const { data } = await browserApi.get<ApiResponse<BookingWithContext[]>>("/bookings", {
+        params,
+      });
       if (data.error) throw new Error(data.error.message);
       return { items: data.data ?? [], total: data.meta.total };
     },

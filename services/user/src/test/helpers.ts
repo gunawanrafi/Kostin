@@ -73,6 +73,7 @@ export function createFakeUserRepository(
     yearOfStudy: null,
     lifestyle: {},
     preferences: {},
+    screeningCriteria: {},
     createdAt: new Date(),
     updatedAt: new Date(),
     ...fields,
@@ -126,6 +127,17 @@ export function createFakeUserRepository(
         profiles.push(profile);
       } else {
         profile.lifestyle = lifestyle;
+        profile.updatedAt = new Date();
+      }
+      return cloneProfile(profile);
+    },
+    updateScreeningCriteria: async (userId, screeningCriteria) => {
+      let profile = profiles.find((p) => p.userId === userId) ?? null;
+      if (!profile) {
+        profile = makeProfile(userId, { screeningCriteria });
+        profiles.push(profile);
+      } else {
+        profile.screeningCriteria = screeningCriteria;
         profile.updatedAt = new Date();
       }
       return cloneProfile(profile);

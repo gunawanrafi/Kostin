@@ -85,6 +85,31 @@ export interface AppNotification {
 
 export type BookingStatus = "PENDING" | "CONFIRMED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
 
+// The applicant behind a booking, embedded by booking-service's GET /bookings.
+export interface BookingStudent {
+  id: string;
+  name: string;
+  role: UserRole;
+  avatarUrl: string | null;
+  university: string | null;
+  major: string | null;
+  yearOfStudy: number | null;
+  /** The account passed phone/OTP verification (users.status === ACTIVE).
+   *  NOT identity/KYC verification — nothing in this platform reviews a
+   *  KTM/KTP, so this must never be labelled "Identitas Terverifikasi". */
+  accountVerified: boolean;
+}
+
+export interface BookingListingRef {
+  id: string;
+  title: string;
+}
+
+export interface BookingRoomRef {
+  id: string;
+  name: string;
+}
+
 export interface Booking {
   id: string;
   listingId: string;
@@ -104,4 +129,31 @@ export interface Booking {
   cancelReason: string | null;
   createdAt: string;
   updatedAt: string;
+
+  // Joined rows, present on GET /bookings only (the single-booking endpoints
+  // still return a bare booking) — hence optional.
+  student?: BookingStudent;
+  listing?: BookingListingRef;
+  room?: BookingRoomRef | null;
+}
+
+// GET /bookings guarantees the joins, so the list view narrows to this rather
+// than null-checking `student` on every read.
+export interface BookingWithContext extends Booking {
+  student: BookingStudent;
+  listing: BookingListingRef;
+  room: BookingRoomRef | null;
+}
+
+// Owner screening preferences — mirrors user-service's screeningCriteriaSchema.
+// Deliberately has no minimum-match-score field: scoring needs ai-service.
+export interface ScreeningCriteria {
+  minDurationMonths: number;
+  requireVerifiedAccount: boolean;
+  requireKtm: boolean;
+  requireKtp: boolean;
+  allowSmoking: boolean;
+  allowPets: boolean;
+  preferredUniversities: string[];
+  notes: string;
 }

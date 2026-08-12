@@ -1,10 +1,19 @@
 import type { UserConfig } from "../config.js";
 import { AppError, UserErrorCode } from "../lib/errors.js";
-import { toPublicUser, type PublicUser } from "../lib/dto.js";
+import {
+  toPublicUser,
+  toScreeningCriteria,
+  type PublicUser,
+  type ScreeningCriteria,
+} from "../lib/dto.js";
 import type { AvatarUploader } from "../lib/avatar-uploader.js";
 import type { ParentInviteRepository } from "../lib/parent-invite-repository.js";
 import type { UpdateMeInput, UserRepository } from "../lib/user-repository.js";
-import type { InviteParentInput, LifestyleInput } from "../lib/validation.js";
+import type {
+  InviteParentInput,
+  LifestyleInput,
+  ScreeningCriteriaInput,
+} from "../lib/validation.js";
 
 export interface UserDeps {
   config: UserConfig;
@@ -86,6 +95,60 @@ export async function updateLifestyle(
 
   await deps.userRepository.updateLifestyle(userId, input);
   return loadPublicUser(deps, userId);
+}
+
+// ── Screening criteria (D3) ───────────────────────────────────────────────
+//
+// OWNER-only, mirroring inviteParent's STUDENT-only guard: screening criteria
+// describe how an owner picks tenants, which is meaningless for an account
+// that has no listings to apply to.
+function requireOwner(role: string): void {
+  if (role !== "OWNER") {
+    throw new AppError(
+      403,
+      UserErrorCode.FORBIDDEN,
+      "Only owners have tenant screening criteria",
+    );
+  }
+}
+
+export async function getScreeningCriteria(
+  deps: UserDeps,
+  userId: string,
+  role: string,
+): Promise<ScreeningCriteria> {
+  requireOwner(role);
+
+  const user = await deps.userRepository.findById(userId);
+  if (!user) {
+    throw new AppError(404, UserErrorCode.NOT_FOUND, "User not found");
+  }
+
+  // No profile row, or a profile that predates this feature, both mean "never
+  // configured" — answered with defaults rather than a 404, so the D3 form has
+  // something to render on first visit.
+  const profile = await deps.userRepository.findProfileByUserId(userId);
+  return toScreeningCriteria(profile?.screeningCriteria);
+}
+
+// PUT replaces the whole object (see screeningCriteriaSchema).
+export async function updateScreeningCriteria(
+  deps: UserDeps,
+  userId: string,
+  role: string,
+  input: ScreeningCriteriaInput,
+): Promise<ScreeningCriteria> {
+  requireOwner(role);
+
+  const user = await deps.userRepository.findById(userId);
+  if (!user) {
+    throw new AppError(404, UserErrorCode.NOT_FOUND, "User not found");
+  }
+
+  const profile = await deps.userRepository.updateScreeningCriteria(userId, input);
+  // Read back through the same normalizer the GET uses, so what the client
+  // receives after saving is exactly what a later GET will return.
+  return toScreeningCriteria(profile.screeningCriteria);
 }
 
 export interface ParentInviteResult {

@@ -9,7 +9,12 @@ import type { BookingQueue } from "../lib/booking-queue.js";
 import { addMonths } from "../lib/date.js";
 import { clearDraft, getDraft, saveDraft, type StoredDraft } from "../lib/draft-store.js";
 import type { DocumentUploader } from "../lib/document-uploader.js";
-import { toPublicBooking, type PublicBooking } from "../lib/dto.js";
+import {
+  toPublicBooking,
+  toPublicBookingWithContext,
+  type PublicBooking,
+  type PublicBookingWithContext,
+} from "../lib/dto.js";
 import type { EscrowClient } from "../lib/escrow-client.js";
 import { AppError, BookingErrorCode } from "../lib/errors.js";
 import type { RedisLike } from "../lib/redis.js";
@@ -98,7 +103,7 @@ export async function createBooking(
 }
 
 export interface ListBookingsResult {
-  items: PublicBooking[];
+  items: PublicBookingWithContext[];
   page: number;
   limit: number;
   total: number;
@@ -119,7 +124,7 @@ export async function listBookings(
   const limit = Math.min(query.limit ?? deps.config.defaultPageSize, deps.config.maxPageSize);
 
   const { items, total } = await deps.bookingRepository.findByScope(scope, filters, page, limit);
-  return { items: items.map(toPublicBooking), page, limit, total };
+  return { items: items.map(toPublicBookingWithContext), page, limit, total };
 }
 
 export async function getBooking(deps: BookingDeps, userId: string, bookingId: string): Promise<PublicBooking> {

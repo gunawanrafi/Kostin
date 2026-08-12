@@ -9,6 +9,7 @@ import {
   Users,
   Wallet,
   Settings,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ export const DEFAULT_NAV_ITEMS: WSidebarNavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Properti Saya", href: "/listings", icon: Building2 },
   { label: "Calon Penyewa", href: "/tenants", icon: Users },
+  { label: "Kriteria Penyewa", href: "/tenants/criteria", icon: SlidersHorizontal },
   { label: "Keuangan", href: "/finance", icon: Wallet },
   { label: "Pengaturan", href: "/settings", icon: Settings },
 ];
@@ -58,6 +60,17 @@ export function WSidebar({
   const pathname = usePathname();
   const { data: currentUser, isLoading } = useCurrentUser();
 
+  // Longest matching href wins, so a nested route highlights exactly one item.
+  // A plain startsWith would light up both "Calon Penyewa" (/tenants) and
+  // "Kriteria Penyewa" (/tenants/criteria) while on the nested page.
+  const activeHref = React.useMemo(() => {
+    if (!pathname) return null;
+    const matches = navItems
+      .map((item) => item.href)
+      .filter((href) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`)));
+    return matches.sort((a, b) => b.length - a.length)[0] ?? null;
+  }, [navItems, pathname]);
+
   const resolvedName = ownerName ?? (isLoading ? "…" : (currentUser?.name ?? "Pemilik"));
   const resolvedRole = ownerRole ?? (currentUser ? ROLE_LABEL[currentUser.role] : "Pemilik Kost");
   const resolvedAvatar = avatarUrl ?? currentUser?.avatarUrl ?? undefined;
@@ -78,7 +91,7 @@ export function WSidebar({
 
         <nav className="flex flex-col gap-1">
           {navItems.map((item) => {
-            const isActive = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
+            const isActive = item.href === activeHref;
             const Icon = item.icon;
             return (
               <Link

@@ -4,6 +4,8 @@ import { buildApp } from "../app.js";
 import type { BookingConfig } from "../config.js";
 import type {
   BookingRepository,
+  BookingStudentSummary,
+  BookingWithContext,
   CreateBookingData,
   StatusUpdateData,
 } from "../lib/booking-repository.js";
@@ -132,16 +134,38 @@ export function makeBooking(overrides: Partial<Booking> = {}): Booking {
   };
 }
 
+export function makeStudent(overrides: Partial<BookingStudentSummary> = {}): BookingStudentSummary {
+  return {
+    id: "student-1",
+    name: "Budi Mahasiswa",
+    role: "STUDENT",
+    status: "ACTIVE",
+    avatarUrl: null,
+    university: "Universitas Brawijaya",
+    major: "Teknik Informatika",
+    yearOfStudy: 2,
+    ...overrides,
+  };
+}
+
+// Stands in for the applicant used when a test seeds a booking whose
+// studentId has no explicit `students` entry — the Prisma schema makes
+// Booking.student a required relation, so a booking always has a real user
+// behind it and the fake must not be able to produce one without.
+const FALLBACK_STUDENT_NAME = "Mahasiswa Tanpa Profil";
+
 // In-memory BookingRepository fake, backed by seed listings/rooms/bookings —
 // mirrors the Prisma-backed implementation's lookups without touching Postgres.
 export function createFakeBookingRepository(seed: {
   listings?: Listing[];
   rooms?: Room[];
   bookings?: Booking[];
+  students?: BookingStudentSummary[];
 } = {}): BookingRepository & { bookings: Booking[] } {
   const listings = [...(seed.listings ?? [])];
   const rooms = [...(seed.rooms ?? [])];
   const bookings = [...(seed.bookings ?? [])];
+  const students = [...(seed.students ?? [])];
 
   const clone = <T>(v: T): T => ({ ...v });
 
@@ -209,7 +233,36 @@ export function createFakeBookingRepository(seed: {
         .filter((b) => (filters.status !== undefined ? b.status === filters.status : true))
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       const start = (page - 1) * limit;
-      return { items: matching.slice(start, start + limit).map(clone), total: matching.length };
+
+      // Mirrors the Prisma `include`: joins student/listing/room by id.
+      const withContext: BookingWithContext[] = matching
+        .slice(start, start + limit)
+        .map((booking) => {
+          const student =
+            students.find((s) => s.id === booking.studentId) ??
+            makeStudent({
+              id: booking.studentId,
+              name: FALLBACK_STUDENT_NAME,
+              university: null,
+              major: null,
+              yearOfStudy: null,
+            });
+          const listing = listings.find((l) => l.id === booking.listingId);
+          const room = booking.roomId ? rooms.find((r) => r.id === booking.roomId) : undefined;
+
+          return {
+            ...clone(booking),
+            student: { ...student },
+            listing: listing
+              ? { id: listing.id, title: listing.title }
+              : // Booking.listingId is a required FK, so a missing listing
+                // can only mean the test seeded an inconsistent fixture.
+                { id: booking.listingId, title: "Listing Tanpa Judul" },
+            room: room ? { id: room.id, name: room.name } : null,
+          };
+        });
+
+      return { items: withContext, total: matching.length };
     },
   };
 }
@@ -261,6 +314,7 @@ export interface TestDepsOverrides {
   listings?: Listing[];
   rooms?: Room[];
   bookings?: Booking[];
+  students?: BookingStudentSummary[];
   escrowImpl?: (input: HoldEscrowInput) => Promise<HoldEscrowResult>;
 }
 
@@ -271,6 +325,7 @@ export function createTestDeps(overrides: TestDepsOverrides = {}) {
       listings: overrides.listings,
       rooms: overrides.rooms,
       bookings: overrides.bookings,
+      students: overrides.students,
     }),
     redis: new InMemoryRedis(),
     bookingQueue: createFakeBookingQueue(),

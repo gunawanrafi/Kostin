@@ -25,6 +25,36 @@ export const lifestyleSchema = z.object({
 });
 export type LifestyleInput = z.infer<typeof lifestyleSchema>;
 
+// D3 · Kriteria Penyewa — the owner's screening preferences.
+//
+// Every field maps onto something the platform can actually observe about an
+// applicant today, so the criteria mean something when an owner reads an
+// application next to them:
+//   minDurationMonths      → booking.durationMonths
+//   requireVerifiedAccount → users.status === ACTIVE
+//   requireKtm / requireKtp→ booking.ktmUrl / booking.ktpUrl
+//   allowSmoking / allowPets → the applicant's UserProfile.lifestyle
+//   preferredUniversities  → UserProfile.university
+//
+// Deliberately absent: a minimum match score. Scoring needs ai-service, which
+// does not exist — a stored threshold nothing computes against would be a
+// setting that silently does nothing.
+//
+// PUT semantics like lifestyleSchema: the whole object is replaced, so every
+// field is required and a partial payload is a 400 rather than a silent
+// merge that leaves the owner unsure what is actually saved.
+export const screeningCriteriaSchema = z.object({
+  minDurationMonths: z.number().int().min(1).max(24),
+  requireVerifiedAccount: z.boolean(),
+  requireKtm: z.boolean(),
+  requireKtp: z.boolean(),
+  allowSmoking: z.boolean(),
+  allowPets: z.boolean(),
+  preferredUniversities: z.array(z.string().trim().min(1).max(150)).max(20),
+  notes: z.string().trim().max(500),
+});
+export type ScreeningCriteriaInput = z.infer<typeof screeningCriteriaSchema>;
+
 export const inviteParentSchema = z
   .object({
     parentEmail: z.string().trim().toLowerCase().email().optional(),

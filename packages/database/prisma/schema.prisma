@@ -178,6 +178,21 @@ model UserProfile {
   //   amenities: ["wifi","ac","parking"], roomTypes: ["STANDARD","DELUXE"] }
   preferences Json @default("{}")
 
+  // OWNER-side screening preferences (D3 · Kriteria Penyewa), owned by
+  // user-service. Kept out of `preferences` above, which is the STUDENT's
+  // search preferences — same row, opposite direction, and conflating them
+  // would make "preferences" mean two different things per role.
+  //
+  // Example shape:
+  // { minDurationMonths: 6, requireVerifiedAccount: true, requireKtm: true,
+  //   requireKtp: false, allowSmoking: false, allowPets: false,
+  //   preferredUniversities: ["Universitas Brawijaya"], notes: "" }
+  //
+  // Advisory only in Phase 1: these are shown to the owner while they review
+  // an application by hand. Nothing auto-rejects on them, and there is
+  // deliberately no minimum-match-score field — scoring needs ai-service.
+  screeningCriteria Json @default("{}")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

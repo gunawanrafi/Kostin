@@ -16,6 +16,10 @@ export interface UserRepository {
   updateMe(userId: string, input: UpdateMeInput): Promise<{ user: User; profile: UserProfile | null }>;
   updateAvatarUrl(userId: string, avatarUrl: string): Promise<User>;
   updateLifestyle(userId: string, lifestyle: Record<string, unknown>): Promise<UserProfile>;
+  updateScreeningCriteria(
+    userId: string,
+    screeningCriteria: Record<string, unknown>,
+  ): Promise<UserProfile>;
 }
 
 export function createPrismaUserRepository(prisma: PrismaClient): UserRepository {
@@ -55,6 +59,17 @@ export function createPrismaUserRepository(prisma: PrismaClient): UserRepository
         where: { userId },
         create: { userId, lifestyle: json },
         update: { lifestyle: json },
+      });
+    },
+
+    // Upsert, because an owner who has never touched their profile has no
+    // UserProfile row — saving criteria must not 404 on them.
+    updateScreeningCriteria: (userId, screeningCriteria) => {
+      const json = screeningCriteria as Prisma.InputJsonValue;
+      return prisma.userProfile.upsert({
+        where: { userId },
+        create: { userId, screeningCriteria: json },
+        update: { screeningCriteria: json },
       });
     },
   };

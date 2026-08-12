@@ -1,13 +1,20 @@
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { AppError, UserErrorCode } from "../lib/errors.js";
 import { ok } from "../lib/response.js";
-import { inviteParentSchema, lifestyleSchema, updateMeSchema } from "../lib/validation.js";
+import {
+  inviteParentSchema,
+  lifestyleSchema,
+  screeningCriteriaSchema,
+  updateMeSchema,
+} from "../lib/validation.js";
 import {
   getMe,
+  getScreeningCriteria,
   inviteParent,
   updateAvatar,
   updateLifestyle,
   updateMe,
+  updateScreeningCriteria,
   type UserDeps,
 } from "../services/user.service.js";
 
@@ -21,6 +28,15 @@ function requireUserId(request: FastifyRequest): string {
     throw new AppError(401, UserErrorCode.UNAUTHORIZED, "Missing or invalid Authorization header");
   }
   return request.user.id;
+}
+
+// For routes that also need the caller's role. Same 401 as requireUserId —
+// role checks belong to the service layer, this only proves who is asking.
+function requireAuthUser(request: FastifyRequest): { id: string; role: string } {
+  if (!request.user) {
+    throw new AppError(401, UserErrorCode.UNAUTHORIZED, "Missing or invalid Authorization header");
+  }
+  return request.user;
 }
 
 const userRoutes: FastifyPluginAsync<UserRoutesOptions> = async (
@@ -56,6 +72,21 @@ const userRoutes: FastifyPluginAsync<UserRoutesOptions> = async (
   fastify.put("/me/lifestyle", { preHandler: authenticate }, async (request, reply) => {
     const body = lifestyleSchema.parse(request.body);
     const result = await updateLifestyle(deps, requireUserId(request), body);
+    return reply.status(200).send(ok(result));
+  });
+
+  // D3 · Kriteria Penyewa. GET answers with defaults for an owner who has
+  // never saved any, so the form always has a real starting state.
+  fastify.get("/me/screening-criteria", { preHandler: authenticate }, async (request, reply) => {
+    const user = requireAuthUser(request);
+    const result = await getScreeningCriteria(deps, user.id, user.role);
+    return reply.status(200).send(ok(result));
+  });
+
+  fastify.put("/me/screening-criteria", { preHandler: authenticate }, async (request, reply) => {
+    const user = requireAuthUser(request);
+    const body = screeningCriteriaSchema.parse(request.body);
+    const result = await updateScreeningCriteria(deps, user.id, user.role, body);
     return reply.status(200).send(ok(result));
   });
 
