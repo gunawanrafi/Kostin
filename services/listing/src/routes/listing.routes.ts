@@ -3,10 +3,12 @@ import { requireOwner } from "../lib/auth-plugin.js";
 import { ok } from "../lib/response.js";
 import {
   createListingSchema,
+  createRoomSchema,
   listQuerySchema,
   searchQuerySchema,
   updateListingSchema,
 } from "../lib/validation.js";
+import { createRoom, listRooms } from "../services/room.service.js";
 import {
   addPhotos,
   createListing,
@@ -75,6 +77,28 @@ const listingRoutes: FastifyPluginAsync<ListingRoutesOptions> = async (
     const { id } = request.params as { id: string };
     const result = await deleteListing(deps, user.id, id);
     return reply.status(200).send(ok(result));
+  });
+
+  // ── Rooms ────────────────────────────────────────────────────────────────
+  // Public, like GET /listings/:id — the student-facing detail page needs the
+  // room roster, and it isn't owner-private information.
+  //
+  // Unpaginated by design: a listing has tens of rooms, not thousands (capped
+  // by config.maxRoomsPerListing), and B1's occupancy map needs every room at
+  // once to be correct. Per-status counts for the legend are therefore
+  // derivable client-side from a complete array — no summary in the envelope.
+  fastify.get("/:id/rooms", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const items = await listRooms(deps, id);
+    return reply.status(200).send(ok(items, { total: items.length }));
+  });
+
+  fastify.post("/:id/rooms", { preHandler: authenticate }, async (request, reply) => {
+    const user = requireOwner(request);
+    const { id } = request.params as { id: string };
+    const body = createRoomSchema.parse(request.body);
+    const result = await createRoom(deps, user.id, id, body);
+    return reply.status(201).send(ok(result));
   });
 
   fastify.post("/:id/photos", { preHandler: authenticate }, async (request, reply) => {

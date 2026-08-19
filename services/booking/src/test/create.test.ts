@@ -127,22 +127,28 @@ describe("POST /bookings", () => {
     expect(res.json<ApiResponse<null>>().error?.code).toBe("SELF_BOOKING");
   });
 
-  it("rejects an unavailable room with 409 ROOM_NOT_AVAILABLE", async () => {
-    const listing = makeListing();
-    const room = makeRoom({ available: false });
-    const { app } = buildTestApp({ listings: [listing], rooms: [room] });
-    const token = signAccessToken("student-1", "STUDENT");
+  // AVAILABLE is the only bookable status; the other three all block. Checked
+  // exhaustively because room.status is now the *sole* gate — the redundant
+  // `available` boolean it used to be ANDed with is gone.
+  it.each(["BOOKED", "OCCUPIED", "MAINTENANCE"] as const)(
+    "rejects a %s room with 409 ROOM_NOT_AVAILABLE",
+    async (status) => {
+      const listing = makeListing();
+      const room = makeRoom({ status });
+      const { app } = buildTestApp({ listings: [listing], rooms: [room] });
+      const token = signAccessToken("student-1", "STUDENT");
 
-    const res = await app.inject({
-      method: "POST",
-      url: "/bookings",
-      headers: { authorization: `Bearer ${token}` },
-      payload: { ...validPayload, roomId: room.id },
-    });
+      const res = await app.inject({
+        method: "POST",
+        url: "/bookings",
+        headers: { authorization: `Bearer ${token}` },
+        payload: { ...validPayload, roomId: room.id },
+      });
 
-    expect(res.statusCode).toBe(409);
-    expect(res.json<ApiResponse<null>>().error?.code).toBe("ROOM_NOT_AVAILABLE");
-  });
+      expect(res.statusCode).toBe(409);
+      expect(res.json<ApiResponse<null>>().error?.code).toBe("ROOM_NOT_AVAILABLE");
+    },
+  );
 
   it("rejects a room belonging to a different listing with 404 NOT_FOUND", async () => {
     const listing = makeListing();

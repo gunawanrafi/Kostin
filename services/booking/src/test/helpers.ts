@@ -99,12 +99,12 @@ export function makeRoom(overrides: Partial<Room> = {}): Room {
     pricePerMonth: new Prisma.Decimal(1200000),
     sizeSqm: 9,
     maxOccupants: 1,
-    available: true,
     imageUrls: [],
     amenities: [],
     status: "AVAILABLE",
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
     ...overrides,
   };
 }

@@ -10,12 +10,15 @@ import { AppError, ListingErrorCode } from "./lib/errors.js";
 import { createPrismaListingRepository, type ListingRepository } from "./lib/listing-repository.js";
 import { CloudinaryPhotoUploader, type PhotoUploader } from "./lib/photo-uploader.js";
 import { fail } from "./lib/response.js";
+import { createPrismaRoomRepository, type RoomRepository } from "./lib/room-repository.js";
 import listingRoutes from "./routes/listing.routes.js";
+import roomRoutes from "./routes/room.routes.js";
 import type { ListingDeps } from "./services/listing.service.js";
 
 export interface BuildAppOptions {
   config?: ListingConfig;
   listingRepository?: ListingRepository;
+  roomRepository?: RoomRepository;
   photoUploader?: PhotoUploader;
   logger?: boolean;
 }
@@ -26,6 +29,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const deps: ListingDeps = {
     config,
     listingRepository: options.listingRepository ?? createPrismaListingRepository(prisma),
+    roomRepository: options.roomRepository ?? createPrismaRoomRepository(prisma),
     photoUploader:
       options.photoUploader ??
       new CloudinaryPhotoUploader({
@@ -52,6 +56,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   }));
 
   void app.register(listingRoutes, { prefix: "/listings", deps, authenticate, optionalAuthenticate });
+  // Rooms are addressed by their own id for PATCH/DELETE; listing-scoped
+  // create/list live under /listings/:id/rooms in listingRoutes.
+  void app.register(roomRoutes, { prefix: "/rooms", deps, authenticate });
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof AppError) {

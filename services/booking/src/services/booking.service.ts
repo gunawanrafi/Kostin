@@ -71,7 +71,11 @@ export async function createBooking(
     if (!room || room.listingId !== input.listingId) {
       throw new AppError(404, BookingErrorCode.NOT_FOUND, "Room not found for this listing");
     }
-    if (!room.available || room.status !== "AVAILABLE") {
+    // `status` is now the single source of truth for bookability — the old
+    // `available` boolean was a second column encoding the same fact, and the
+    // two could disagree once owners could edit rooms. AVAILABLE is the only
+    // bookable state; BOOKED/OCCUPIED/MAINTENANCE are not.
+    if (room.status !== "AVAILABLE") {
       throw new AppError(409, BookingErrorCode.ROOM_NOT_AVAILABLE, "This room is not currently available");
     }
     pricePerMonth = toNumber(room.pricePerMonth);

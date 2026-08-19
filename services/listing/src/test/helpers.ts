@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { Prisma, type Listing } from "@kostin/database";
+import { Prisma, type Listing, type Room } from "@kostin/database";
 import { buildApp } from "../app.js";
 import type { ListingConfig } from "../config.js";
 import { decodeCursor, encodeCursor } from "../lib/cursor.js";
@@ -12,6 +12,11 @@ import type {
   UpdateListingData,
 } from "../lib/listing-repository.js";
 import type { PhotoUploader, PhotoUploadResult } from "../lib/photo-uploader.js";
+import type {
+  CreateRoomData,
+  RoomRepository,
+  UpdateRoomData,
+} from "../lib/room-repository.js";
 
 export function testConfig(overrides: Partial<ListingConfig> = {}): ListingConfig {
   return {
@@ -24,6 +29,7 @@ export function testConfig(overrides: Partial<ListingConfig> = {}): ListingConfi
     maxPageSize: 50,
     maxPhotosPerListing: 20,
     maxPhotoUploadBytes: 5 * 1024 * 1024,
+    maxRoomsPerListing: 200,
     cloudinaryCloudName: "test-cloud",
     cloudinaryApiKey: "test-key",
     cloudinaryApiSecret: "test-secret",
@@ -357,12 +363,14 @@ export function createFakePhotoUploader(): PhotoUploader & {
 export interface TestDepsOverrides {
   config?: Partial<ListingConfig>;
   listings?: Listing[];
+  rooms?: Room[];
 }
 
 export function createTestDeps(overrides: TestDepsOverrides = {}) {
   return {
     config: testConfig(overrides.config),
     listingRepository: createFakeListingRepository(overrides.listings),
+    roomRepository: createFakeRoomRepository(overrides.rooms),
     photoUploader: createFakePhotoUploader(),
   };
 }
@@ -374,4 +382,103 @@ export function buildTestApp(overrides: TestDepsOverrides = {}) {
   const deps = createTestDeps(overrides);
   const app = buildApp({ ...deps, logger: false });
   return { app, deps };
+}
+
+export function makeRoom(overrides: Partial<Room> = {}): Room {
+  const now = new Date();
+  return {
+    id: crypto.randomUUID(),
+    listingId: "listing-1",
+    name: "A1",
+    type: "STANDARD",
+    pricePerMonth: new Prisma.Decimal(1200000),
+    sizeSqm: 9,
+    maxOccupants: 1,
+    imageUrls: [],
+    amenities: ["ac"],
+    status: "AVAILABLE",
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+    ...overrides,
+  };
+}
+
+function cloneRoom(r: Room): Room {
+  return { ...r, amenities: [...r.amenities], imageUrls: [...r.imageUrls] };
+}
+
+// In-memory RoomRepository fake. Mirrors the Prisma-backed implementation,
+// including the deletedAt filter on every read — a soft-deleted room must be
+// invisible to findById as well as to the list.
+export function createFakeRoomRepository(seed: Room[] = []): RoomRepository & { rooms: Room[] } {
+  const rooms = [...seed];
+
+  return {
+    rooms,
+
+    findById: async (id) => {
+      const found = rooms.find((r) => r.id === id && !r.deletedAt);
+      return found ? cloneRoom(found) : null;
+    },
+
+    findByListingId: async (listingId) =>
+      rooms
+        .filter((r) => r.listingId === listingId && !r.deletedAt)
+        .sort(
+          (a, b) =>
+            a.name.localeCompare(b.name) || a.createdAt.getTime() - b.createdAt.getTime(),
+        )
+        .map(cloneRoom),
+
+    countByListingId: async (listingId) =>
+      rooms.filter((r) => r.listingId === listingId && !r.deletedAt).length,
+
+    create: async (input: CreateRoomData) => {
+      const now = new Date();
+      const room: Room = {
+        id: crypto.randomUUID(),
+        listingId: input.listingId,
+        name: input.name,
+        type: input.type,
+        pricePerMonth: new Prisma.Decimal(input.pricePerMonth),
+        sizeSqm: input.sizeSqm,
+        maxOccupants: input.maxOccupants,
+        imageUrls: input.imageUrls,
+        amenities: input.amenities,
+        status: input.status,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      };
+      rooms.push(room);
+      return cloneRoom(room);
+    },
+
+    update: async (id, input: UpdateRoomData) => {
+      const room = rooms.find((r) => r.id === id);
+      if (!room) throw new Error("Room not found");
+      if (input.name !== undefined) room.name = input.name;
+      if (input.type !== undefined) room.type = input.type;
+      if (input.pricePerMonth !== undefined) {
+        room.pricePerMonth = new Prisma.Decimal(input.pricePerMonth);
+      }
+      // undefined check, not truthiness — null clears the size.
+      if (input.sizeSqm !== undefined) room.sizeSqm = input.sizeSqm;
+      if (input.maxOccupants !== undefined) room.maxOccupants = input.maxOccupants;
+      if (input.amenities !== undefined) room.amenities = input.amenities;
+      if (input.imageUrls !== undefined) room.imageUrls = input.imageUrls;
+      if (input.status !== undefined) room.status = input.status;
+      room.updatedAt = new Date();
+      return cloneRoom(room);
+    },
+
+    softDelete: async (id) => {
+      const room = rooms.find((r) => r.id === id);
+      if (!room) throw new Error("Room not found");
+      room.deletedAt = new Date();
+      room.updatedAt = new Date();
+      return cloneRoom(room);
+    },
+  };
 }

@@ -13,6 +13,9 @@ export interface ListingConfig {
   maxPageSize: number;
   maxPhotosPerListing: number;
   maxPhotoUploadBytes: number;
+  // Bounds B1's occupancy grid and stops a scripted caller creating rooms
+  // without limit. Generous enough for any real kost in Malang.
+  maxRoomsPerListing: number;
 
   cloudinaryCloudName: string;
   cloudinaryApiKey: string;
@@ -23,6 +26,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 const MAX_PHOTOS_PER_LISTING = 20;
 const MAX_PHOTO_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_ROOMS_PER_LISTING = 200;
 
 function int(value: string | undefined, fallback: number): number {
   const n = value ? parseInt(value, 10) : NaN;
@@ -46,6 +50,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ListingConfig 
     maxPageSize: int(env["LISTING_MAX_PAGE_SIZE"], MAX_PAGE_SIZE),
     maxPhotosPerListing: int(env["LISTING_MAX_PHOTOS"], MAX_PHOTOS_PER_LISTING),
     maxPhotoUploadBytes: int(env["LISTING_MAX_PHOTO_UPLOAD_BYTES"], MAX_PHOTO_UPLOAD_BYTES),
+    maxRoomsPerListing: int(env["LISTING_MAX_ROOMS"], MAX_ROOMS_PER_LISTING),
 
     cloudinaryCloudName: env["CLOUDINARY_CLOUD_NAME"] ?? "",
     cloudinaryApiKey: env["CLOUDINARY_API_KEY"] ?? "",

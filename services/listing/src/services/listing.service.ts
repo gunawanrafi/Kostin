@@ -8,6 +8,7 @@ import type {
   ListingRepository,
 } from "../lib/listing-repository.js";
 import type { PhotoUploader } from "../lib/photo-uploader.js";
+import type { RoomRepository } from "../lib/room-repository.js";
 import {
   TIPE_TO_KOST_TYPE,
   type AdditionalFeesInput,
@@ -40,6 +41,7 @@ function toFeeColumns(fees: AdditionalFeesInput | undefined) {
 export interface ListingDeps {
   config: ListingConfig;
   listingRepository: ListingRepository;
+  roomRepository: RoomRepository;
   photoUploader: PhotoUploader;
 }
 

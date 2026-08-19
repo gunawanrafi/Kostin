@@ -51,9 +51,19 @@ enum RoomType {
   PREMIUM
 }
 
+// Occupancy state of a single room — the colour coding behind B1's "Peta
+// Hunian Kamar". This is the ONE source of truth for whether a room can be
+// booked; there is deliberately no second `available` boolean that could
+// disagree with it.
+//
+// BOOKED vs OCCUPIED mirrors the booking lifecycle: a room is BOOKED once a
+// booking is CONFIRMED (reserved, tenant not yet in, still cancellable) and
+// OCCUPIED once that booking goes ACTIVE (tenant has moved in, earning). An
+// owner's occupancy map needs those apart — only OCCUPIED is real income.
 enum RoomStatus {
   AVAILABLE
   BOOKED
+  OCCUPIED
   MAINTENANCE
 }
 
@@ -303,17 +313,27 @@ model Listing {
 model Room {
   id            String     @id @default(cuid())
   listingId     String
+  // Owner-facing label shown on the occupancy map, e.g. "A1", "Kamar 3".
   name          String
   type          RoomType   @default(STANDARD)
+  // Per-room rent, which overrides the listing's pricePerMonth when a booking
+  // names a specific room (see booking-service's createBooking).
   pricePerMonth Decimal    @db.Decimal(12, 2)
   sizeSqm       Float?
   maxOccupants  Int        @default(1)
-  available     Boolean    @default(true)
   imageUrls     String[]
-  amenities     Json       @default("[]")
+  // String[] to match Listing.amenities — it was Json("[]"), which stored the
+  // same list in a shape nothing could query or constrain.
+  amenities     String[]
   status        RoomStatus @default(AVAILABLE)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+
+  // Soft delete, mirroring Listing.deletedAt. Non-null = deleted; every query
+  // outside admin/audit tooling must filter deletedAt: null. Rooms are
+  // referenced by Booking.roomId, so a hard delete would either orphan or
+  // cascade away booking history.
+  deletedAt DateTime?
 
   // Relations
   listing  Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -321,7 +341,7 @@ model Room {
 
   @@index([listingId])
   @@index([listingId, status])
-  @@index([listingId, available])
+  @@index([deletedAt])
   @@map("rooms")
 }
 

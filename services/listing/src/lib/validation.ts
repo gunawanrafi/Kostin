@@ -1,5 +1,11 @@
 import { z } from "zod";
-import type { KostType, ListingStatus, PaymentDuration } from "@kostin/database";
+import type {
+  KostType,
+  ListingStatus,
+  PaymentDuration,
+  RoomStatus,
+  RoomType,
+} from "@kostin/database";
 
 // The API speaks the short "tipe" vocabulary from the task spec
 // (PUTRA/PUTRI/CAMPUR); Postgres/Prisma store the full KostType enum.
@@ -188,3 +194,59 @@ export const searchQuerySchema = z
     }
   });
 export type SearchQueryInput = z.infer<typeof searchQuerySchema>;
+
+// ── Rooms ──────────────────────────────────────────────────────────────────
+
+export const ROOM_TYPE_VALUES = ["STANDARD", "DELUXE", "PREMIUM"] as const satisfies readonly RoomType[];
+
+// Mirrors the RoomStatus enum. AVAILABLE is the only bookable state (see
+// booking-service's createBooking); the other three all block a booking.
+export const ROOM_STATUS_VALUES = [
+  "AVAILABLE",
+  "BOOKED",
+  "OCCUPIED",
+  "MAINTENANCE",
+] as const satisfies readonly RoomStatus[];
+
+const roomTypeSchema = z.enum(ROOM_TYPE_VALUES);
+export const roomStatusSchema = z.enum(ROOM_STATUS_VALUES);
+
+// Room names are the labels on B1's occupancy grid ("A1", "Kamar 3"), so they
+// are short by nature.
+const roomNameSchema = z.string().trim().min(1).max(50);
+const roomAmenitiesSchema = z.array(z.string().trim().min(1).max(60)).max(30);
+const roomImageUrlsSchema = z.array(z.string().trim().url()).max(20);
+
+export const createRoomSchema = z.object({
+  name: roomNameSchema,
+  type: roomTypeSchema.optional().default("STANDARD"),
+  pricePerMonth: z.number().positive().max(9_999_999_999),
+  // Nullable rather than merely optional: an owner can explicitly say "size
+  // unknown", which is what the nullable column already models.
+  sizeSqm: z.number().positive().max(1000).nullable().optional().default(null),
+  maxOccupants: z.number().int().min(1).max(20).optional().default(1),
+  amenities: roomAmenitiesSchema.optional().default([]),
+  imageUrls: roomImageUrlsSchema.optional().default([]),
+  // Settable at creation so an owner can add a room that is already occupied
+  // when they onboard an existing kost.
+  status: roomStatusSchema.optional().default("AVAILABLE"),
+});
+export type CreateRoomInput = z.infer<typeof createRoomSchema>;
+
+// PATCH: every field optional, but at least one required — an empty body is a
+// no-op the caller almost certainly didn't intend.
+export const updateRoomSchema = z
+  .object({
+    name: roomNameSchema.optional(),
+    type: roomTypeSchema.optional(),
+    pricePerMonth: z.number().positive().max(9_999_999_999).optional(),
+    sizeSqm: z.number().positive().max(1000).nullable().optional(),
+    maxOccupants: z.number().int().min(1).max(20).optional(),
+    amenities: roomAmenitiesSchema.optional(),
+    imageUrls: roomImageUrlsSchema.optional(),
+    status: roomStatusSchema.optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "At least one field must be provided",
+  });
+export type UpdateRoomInput = z.infer<typeof updateRoomSchema>;
